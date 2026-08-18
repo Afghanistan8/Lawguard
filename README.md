@@ -44,7 +44,7 @@ confidence). If trusted sources are unavailable or insufficient, Lawguard return
 
 | Resource | Link |
 | --- | --- |
-| Live demo | `https://<your-deployment>.example` *(placeholder — run locally with `npm run dev`)* |
+| **Live demo** | **https://lawguard.vercel.app** ✅ (wired to the StudioNet contract below) |
 | **Contract (StudioNet, chain 61999)** | `0xA7D9B1B288E4D1da9C94aC9b06452c7bdbCfd298` — **live** ✅ |
 | Contract (Bradbury testnet, chain 4221) | `0x7d96FBdb186A2D7233803b795F8b4efdf360Ff47` — live mirror |
 | StudioNet explorer | https://genlayer-explorer.vercel.app |
