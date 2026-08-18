@@ -61,11 +61,13 @@ confidence). If trusted sources are unavailable or insufficient, Lawguard return
 
 ## Tools
 
-Ten high-value, lawyer-facing capabilities. Each AI tool is a consensus-backed on-chain write.
+**Eight AI verification tools** (each a consensus-backed on-chain write), plus a
+privacy-preserving **case registry**, auto-raised **alerts**, and owner-managed
+**trusted-source** administration.
 
 <p align="center"><img src="docs/tools.svg" alt="Tools" width="92%"/></p>
 
-| # | Tool | Contract method | What it returns |
+| # | AI tool | Contract method | What it returns |
 |---|------|-----------------|-----------------|
 | 1 | **Verify Statute** | `verify_statute` | The official statute/code section for a crime or charge in a jurisdiction. |
 | 2 | **Screen Application** | `screen_application` | Whether a described application of a law appears consistent with statute + case law (never judges guilt). |
@@ -75,11 +77,15 @@ Ten high-value, lawyer-facing capabilities. Each AI tool is a consensus-backed o
 | 6 | **Conflict / Superseding Check** | `check_conflicts` | Whether a provision is in force, amended, repealed, superseded, or conflicting. |
 | 7 | **Map Facts → Provisions** | `map_facts_to_provisions` | Issue-spotting: the most relevant provisions to review for a fact pattern. |
 | 8 | **Verification Report** | `generate_verification_report` | An auditable reference report: provision, text, conflicts, confidence, disclaimer. |
-| 9 | **Alerts & Flags** | `get_alerts` | Auto-raised flags for low confidence, conflicts, or unavailable/insufficient sources. |
-| 10 | **Case Registry** | `register_case` / `link_analysis_to_case` | Privacy-preserving matter records with access control and analysis linking. |
 
-Plus owner-managed **Trusted Sources** administration (`add_trusted_source` / `remove_trusted_source`)
-and read views for the full ledger (`list_analyses`, `search_analyses`, `get_analysis`, `get_stats`).
+**Beyond the AI tools:**
+
+| Feature | Contract methods | Notes |
+|---|---|---|
+| **Case registry** | `register_case` / `link_analysis_to_case` / `search_cases` | Privacy-preserving matter records with creator-only access control. |
+| **Alerts** | `get_alerts` | Auto-raised on low confidence, conflicts, or unavailable/insufficient sources. |
+| **Trusted sources (owner)** | `add_trusted_source` / `remove_trusted_source` / `get_trusted_sources` | HTTPS-only, owner-restricted. The UI reads this registry to build the jurisdiction list dynamically. |
+| **Ledger & stats** | `list_analyses` / `search_analyses` / `get_analysis` / `get_stats` | Wallet-free reads over the full auditable history. |
 
 Every AI tool returns the same normalised, auditable shape:
 
@@ -159,18 +165,54 @@ Copy the deployed address (`0x…`).
 ### 3. Run the frontend
 ```bash
 cd frontend
-cp .env.example .env          # then set VITE_LAWGUARD_CONTRACT_ADDRESS + VITE_GENLAYER_NETWORK
+cp .env.example .env          # set VITE_GENLAYER_NETWORK + VITE_LAWGUARD_CONTRACT_ADDRESS
 npm install
 npm run dev                   # http://localhost:5173
 ```
-In the app: **Connect demo wallet** (top-right), paste your contract address in the
-**Connection** bar if not set via env, pick a tool, load a **sample scenario**, and run it.
-Watch the transaction move through **pending → accepted → finalized**, then review the
-grounded, on-chain result.
+`.env.example` documents every variable (network, contract address, optional RPC
+override). The defaults already point at the live StudioNet deployment, so `npm run
+dev` works out of the box.
 
-> The demo wallet is a **burner** key generated in-browser (or import your own testnet key).
-> It is for StudioNet/testnet only — never store a funded key. For production, integrate a
-> proper wallet provider.
+### How to test live
+
+1. Open the app (locally or **https://lawguard.vercel.app**). The **Analyses ledger**,
+   **Alerts**, **Dashboard**, and **Trusted sources** load immediately — reads need no wallet.
+2. Click **Connect Wallet** (top-right) and pick one:
+   - **Browser wallet** (MetaMask / OKX / any EIP-6963 wallet) — you'll be prompted to
+     add & switch to **GenLayer StudioNet** (chain **61999**, RPC `https://studio.genlayer.com/api`).
+     The menu's **"how?"** link shows the exact network details to copy.
+   - **🔥 Create burner wallet** — an instant, throwaway key generated in your browser and
+     **auto-funded on StudioNet**. Best for a quick demo without an extension. *Testnet only.*
+   - **Import a testnet key** — paste a funded `0x…` key.
+3. Go to **Verification tools**, pick a tool, click a **sample scenario** preset (the ones
+   labelled *"deep link → likely VERIFIED"* point at the exact provision text), and **Run**.
+4. Watch the transaction: **Signing → Pending → Accepted** (the result appears here — a few
+   minutes) → **Finalized** (the extra security window, 5–30 min, watched in the background).
+   You can **switch tabs while it runs** — the sticky **Transactions** tracker at the bottom
+   keeps every tx visible with a live timer and **explorer links** (StudioNet + Bradbury).
+
+> Burner keys live in `localStorage` and are for testnets only — never store a funded key.
+> For production, use a real wallet.
+
+## Known limitations & live status
+
+Lawguard is a working, on-chain demo. A few honest caveats:
+
+- **Consensus timing.** GenLayer runs every AI tool through leader/validator consensus.
+  A result is readable at **Accepted** (typically 1–3 min); full **Finalization** can take
+  **5–30 minutes**. The UI resolves at Accepted and finalizes in the background so it never
+  blocks — but this is inherent to the network, not a bug.
+- **`VERIFIED` is probabilistic.** Because validators independently run an LLM and must agree
+  on the decision fields (status, citation, confidence), rich free-text can occasionally land
+  as **`UNDETERMINED`** (nothing commits — the *safe* outcome). Pointing a tool at a **deep link
+  to the exact statute** (via *Additional trusted source URLs*, under an already-trusted origin)
+  makes validators converge and reliably returns `VERIFIED`. The fail-safe path
+  (`INSUFFICIENT_EVIDENCE` / `UNAVAILABLE` + auto-alert) is by design when sources are thin.
+- **Wallets on StudioNet.** StudioNet is a hosted simulator; a real wallet must add it as a
+  custom chain (the UI guides this). The **burner wallet** is the smoothest path for evaluation
+  and is auto-funded there.
+- **Deploy header.** Deploy with the **pinned runner hash** (see the deploy note above), not
+  `py-genlayer:test`, which does not currently resolve on the hosted networks.
 
 ## Tests
 

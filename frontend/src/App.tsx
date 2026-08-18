@@ -7,11 +7,17 @@ import { AlertsPanel } from "./components/AlertsPanel";
 import { CaseRegistryPanel } from "./components/CaseRegistryPanel";
 import { TrustedSourcesPanel } from "./components/TrustedSourcesPanel";
 import { StatsPanel } from "./components/StatsPanel";
+import { TxTracker } from "./components/TxTracker";
 import { useWallet } from "./useWallet";
 import { useGenLayer } from "./useGenLayer";
 import { TOOLS } from "./tools";
-import { CONTRACT_ADDRESS } from "./config";
-import type { SampleScenario } from "./types";
+import {
+  CONTRACT_ADDRESS,
+  JURISDICTIONS,
+  jurisdictionsFromCodes,
+  type Jurisdiction,
+} from "./config";
+import type { SampleScenario, TrustedSources } from "./types";
 
 type Nav = "tools" | "ledger" | "alerts" | "cases" | "sources" | "dashboard";
 
@@ -37,11 +43,31 @@ export default function App() {
   // ---- wallet + client ----
   const wallet = useWallet();
   const [contractAddress, setContractAddress] = useState<string>(CONTRACT_ADDRESS);
-  const api = useGenLayer(contractAddress);
+  const api = useGenLayer(contractAddress, wallet);
 
   // ---- navigation ----
   const [nav, setNav] = useState<Nav>("tools");
   const [activeTool, setActiveTool] = useState<string>(TOOLS[0].key);
+
+  // ---- dynamic jurisdictions (from the on-chain trusted-source registry) ----
+  const [jurisdictions, setJurisdictions] = useState<Jurisdiction[]>(JURISDICTIONS);
+  useEffect(() => {
+    if (!api.ready) return;
+    let cancelled = false;
+    api
+      .read<TrustedSources>("get_trusted_sources")
+      .then((src) => {
+        const list = jurisdictionsFromCodes(Object.keys(src ?? {}));
+        if (!cancelled && list.length) setJurisdictions(list);
+      })
+      .catch(() => {
+        /* keep the sensible default list */
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api.ready, contractAddress]);
 
   // ---- sample scenarios ----
   const [samples, setSamples] = useState<SampleScenario[]>([]);
@@ -111,6 +137,7 @@ export default function App() {
               api={api}
               connected={wallet.connected}
               samples={samples}
+              jurisdictions={jurisdictions}
             />
           </>
         )}
@@ -118,10 +145,18 @@ export default function App() {
         {nav === "ledger" && <AnalysesPanel api={api} />}
         {nav === "alerts" && <AlertsPanel api={api} />}
         {nav === "cases" && (
-          <CaseRegistryPanel api={api} connected={wallet.connected} />
+          <CaseRegistryPanel
+            api={api}
+            connected={wallet.connected}
+            jurisdictions={jurisdictions}
+          />
         )}
         {nav === "sources" && (
-          <TrustedSourcesPanel api={api} connected={wallet.connected} />
+          <TrustedSourcesPanel
+            api={api}
+            connected={wallet.connected}
+            jurisdictions={jurisdictions}
+          />
         )}
         {nav === "dashboard" && (
           <>
@@ -135,6 +170,8 @@ export default function App() {
           consensus-validated, and permanently auditable on-chain.
         </div>
       </main>
+
+      <TxTracker />
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import type { GenLayerApi } from "../useGenLayer";
-import type { TrustedSources, TxStatus } from "../types";
-import { JURISDICTIONS } from "../config";
+import type { TrustedSources } from "../types";
+import type { Jurisdiction } from "../config";
+import { JURISDICTION_LABELS } from "../config";
+import { useTx } from "../tx/TxContext";
 import { TxStatusView } from "./TxStatusView";
 
 /**
@@ -12,23 +14,35 @@ import { TxStatusView } from "./TxStatusView";
 export function TrustedSourcesPanel({
   api,
   connected,
+  jurisdictions,
 }: {
   api: GenLayerApi;
   connected: boolean;
+  jurisdictions: Jurisdiction[];
 }) {
+  const tx = useTx();
   const [sources, setSources] = useState<TrustedSources>({});
-  const [country, setCountry] = useState(JURISDICTIONS[0].code);
+  const [loading, setLoading] = useState(false);
+  const [country, setCountry] = useState(jurisdictions[0]?.code ?? "US");
   const [url, setUrl] = useState("");
-  const [tx, setTx] = useState<TxStatus>({ phase: "idle" });
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+
+  const record = tx.get(activeId);
+  const busy =
+    record?.phase === "signing" ||
+    record?.phase === "pending" ||
+    record?.phase === "accepted";
 
   const load = useCallback(async () => {
     if (!api.ready) return;
+    setLoading(true);
     try {
       setSources(await api.read<TrustedSources>("get_trusted_sources"));
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
     }
   }, [api]);
 
@@ -37,17 +51,22 @@ export function TrustedSourcesPanel({
   }, [load]);
 
   const isHttps = /^https:\/\/\S+$/.test(url.trim());
+  const validCountry = /^[A-Z]{2,4}$/.test(country.trim());
 
-  async function mutate(fn: "add_trusted_source" | "remove_trusted_source", c: string, u: string) {
+  async function mutate(
+    fn: "add_trusted_source" | "remove_trusted_source",
+    c: string,
+    u: string
+  ) {
     setErr(null);
-    setBusy(true);
+    const label = fn === "add_trusted_source" ? "Add trusted source" : "Remove source";
+    const { id, done } = tx.runRaw(label, (onStatus) => api.write(fn, [c, u], onStatus));
+    setActiveId(id);
     try {
-      await api.write(fn, [c, u], setTx);
+      await done;
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -63,38 +82,55 @@ export function TrustedSourcesPanel({
       <div className="notice" style={{ marginBottom: 14 }}>
         The contract rejects non-HTTPS URLs and non-owner mutations. If your
         connected account is not the deployer, admin writes will return an error.
+        The jurisdiction list is read live from this registry.
       </div>
 
       <div className="toolbar">
-        <select value={country} onChange={(e) => setCountry(e.target.value)}>
-          {JURISDICTIONS.map((j) => (
+        <input
+          type="text"
+          list="jurisdiction-codes"
+          value={country}
+          disabled={busy}
+          onChange={(e) => setCountry(e.target.value.toUpperCase().slice(0, 4))}
+          placeholder="Country code (e.g. US)"
+          style={{ maxWidth: 160 }}
+        />
+        <datalist id="jurisdiction-codes">
+          {jurisdictions.map((j) => (
             <option key={j.code} value={j.code}>
-              {j.label} ({j.code})
+              {JURISDICTION_LABELS[j.code] ?? j.code}
             </option>
           ))}
-        </select>
+        </datalist>
         <input
           type="text"
           value={url}
           placeholder="https://official.gov/…"
+          disabled={busy}
           onChange={(e) => setUrl(e.target.value)}
           style={{ minWidth: 260, flex: 1 }}
         />
         <button
           className="primary small"
-          onClick={() => mutate("add_trusted_source", country, url.trim())}
-          disabled={!connected || !api.ready || busy || !isHttps}
+          onClick={() => mutate("add_trusted_source", country.trim(), url.trim())}
+          disabled={!connected || !api.ready || busy || !isHttps || !validCountry}
+          title={!connected ? "Connect a wallet first" : undefined}
         >
-          Add
+          {busy ? "Working…" : "Add"}
         </button>
       </div>
 
-      <TxStatusView status={tx} />
+      <TxStatusView record={record} />
       {err && <div className="error-box">⚠ {err}</div>}
 
       <hr className="sep" />
 
-      {Object.keys(sources).length === 0 ? (
+      {loading && Object.keys(sources).length === 0 ? (
+        <div className="skeleton-list">
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+        </div>
+      ) : Object.keys(sources).length === 0 ? (
         <p className="muted">No sources loaded.</p>
       ) : (
         Object.entries(sources)
@@ -103,7 +139,10 @@ export function TrustedSourcesPanel({
             <div className="list-item" key={c}>
               <div className="row" style={{ marginBottom: 8, gap: 8 }}>
                 <span className="badge info">{c}</span>
-                <span className="faint">{urls.length} source(s)</span>
+                <span className="faint">
+                  {JURISDICTION_LABELS[c] ? `${JURISDICTION_LABELS[c]} · ` : ""}
+                  {urls.length} source(s)
+                </span>
               </div>
               <ul className="sources" style={{ margin: 0, paddingLeft: 18 }}>
                 {urls.map((u) => (

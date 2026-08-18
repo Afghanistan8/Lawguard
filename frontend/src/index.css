@@ -292,3 +292,104 @@ hr.sep { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: 1fr; }
   .header-inner { flex-wrap: wrap; }
 }
+
+/* ==========================================================================
+   Transaction status (inline) — progressive, non-blocking.
+   ========================================================================== */
+.tx {
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  padding: 12px 14px; border-radius: var(--radius-sm); margin-top: 12px;
+  border: 1px solid var(--border); background: var(--bg-subtle);
+}
+.tx-head { display: flex; align-items: center; gap: 8px; }
+.tx.accepted { border-color: var(--info); }
+.tx.finalized { border-color: var(--ok); }
+.tx.error { border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: var(--danger-bg); }
+.tx-progress {
+  height: 6px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 999px; overflow: hidden;
+}
+.tx-progress > span { display: block; height: 100%; background: var(--brand); transition: width 0.4s ease; }
+.tx-progress > span.indeterminate {
+  width: 32% !important; border-radius: 999px;
+  animation: indet 1.4s infinite ease-in-out;
+}
+@keyframes indet {
+  0% { margin-left: -34%; } 60% { margin-left: 100%; } 100% { margin-left: 100%; }
+}
+.tx-msg { font-size: 13px; }
+.tx-hint { font-size: 12px; }
+.explorer-links { display: inline-flex; gap: 10px; flex-wrap: wrap; }
+.explorer-link { font-size: 12px; white-space: nowrap; }
+
+/* ---- Global transaction tracker (sticky) ---- */
+.tx-tracker {
+  position: sticky; bottom: 0; z-index: 20;
+  background: var(--bg-panel); border-top: 1px solid var(--border-strong);
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.10); padding: 8px 16px;
+}
+.tx-tracker-head {
+  display: flex; align-items: center; gap: 10px;
+  max-width: 1180px; margin: 0 auto 6px;
+}
+.tx-tracker-list {
+  max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column;
+  gap: 6px; max-height: 168px; overflow: auto;
+}
+.tx-row { display: flex; align-items: center; gap: 10px; font-size: 13px; flex-wrap: wrap; }
+.tx-row-title { font-weight: 600; }
+.tx-dismiss {
+  background: transparent; border: none; color: var(--text-faint);
+  cursor: pointer; margin-left: auto; padding: 2px 8px; font-size: 13px;
+}
+.tx-dismiss:hover:not(:disabled) { color: var(--danger); }
+
+/* ---- Wallet connect menu ---- */
+.wallet-menu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 50; width: 310px;
+  background: var(--bg-panel); color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 12px; text-align: left;
+}
+.wm-section-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-faint); margin: 4px 0 6px;
+}
+.wm-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  justify-content: flex-start; margin-bottom: 6px; background: var(--bg-elev);
+}
+.wm-note { font-size: 11.5px; color: var(--text-muted); margin: 2px 0 6px; }
+.wm-divider { height: 1px; background: var(--border); margin: 10px 0; }
+.wm-import { display: flex; gap: 6px; }
+.wm-import input { flex: 1; min-width: 0; }
+.wm-help {
+  font-size: 12px; background: var(--bg-subtle); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 8px; margin-bottom: 6px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.wm-err { color: var(--danger); font-size: 12px; margin-top: 6px; }
+.linklike {
+  background: none; border: none; color: var(--brand); cursor: pointer;
+  padding: 0; font: inherit; text-decoration: underline;
+}
+
+/* ---- Result guidance callout ---- */
+.callout {
+  border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12.5px;
+  margin: 12px 0; border: 1px solid transparent; line-height: 1.5;
+}
+.callout.warn { background: var(--warn-bg); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.callout.danger { background: var(--danger-bg); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.callout.info { background: var(--info-bg); color: var(--info); border-color: color-mix(in srgb, var(--info) 30%, transparent); }
+
+/* ---- Loading skeletons ---- */
+.skeleton-list { display: flex; flex-direction: column; gap: 8px; }
+.skeleton-row, .skeleton-stat {
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: linear-gradient(90deg, var(--bg-subtle) 25%, var(--bg-elev) 37%, var(--bg-subtle) 63%);
+  background-size: 400% 100%; animation: shimmer 1.4s ease infinite;
+}
+.skeleton-row { height: 46px; }
+.skeleton-stat { height: 64px; }
+@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }

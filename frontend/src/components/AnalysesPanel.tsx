@@ -101,6 +101,13 @@ export function AnalysesPanel({ api }: { api: GenLayerApi }) {
 
       {err && <div className="error-box">⚠ {err}</div>}
 
+      {loading && items.length === 0 && (
+        <div className="skeleton-list">
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+        </div>
+      )}
       {items.length === 0 && !loading && (
         <p className="muted">No analyses yet. Run a tool to create one.</p>
       )}

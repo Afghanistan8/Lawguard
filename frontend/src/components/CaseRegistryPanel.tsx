@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { GenLayerApi } from "../useGenLayer";
-import type { CaseRecord, TxStatus } from "../types";
-import { JURISDICTIONS } from "../config";
+import type { CaseRecord } from "../types";
+import type { Jurisdiction } from "../config";
+import { useTx } from "../tx/TxContext";
 import { TxStatusView } from "./TxStatusView";
 
 /**
@@ -12,25 +13,35 @@ import { TxStatusView } from "./TxStatusView";
 export function CaseRegistryPanel({
   api,
   connected,
+  jurisdictions,
 }: {
   api: GenLayerApi;
   connected: boolean;
+  jurisdictions: Jurisdiction[];
 }) {
+  const tx = useTx();
   const [title, setTitle] = useState("");
-  const [country, setCountry] = useState(JURISDICTIONS[0].code);
+  const [country, setCountry] = useState(jurisdictions[0]?.code ?? "US");
   const [matterType, setMatterType] = useState("");
   const [reference, setReference] = useState("");
   const [linkCase, setLinkCase] = useState("");
   const [linkAnalysis, setLinkAnalysis] = useState("");
 
   const [cases, setCases] = useState<CaseRecord[]>([]);
+  const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
-  const [tx, setTx] = useState<TxStatus>({ phase: "idle" });
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+
+  const record = tx.get(activeId);
+  const busy =
+    record?.phase === "signing" ||
+    record?.phase === "pending" ||
+    record?.phase === "accepted";
 
   const load = useCallback(async () => {
     if (!api.ready) return;
+    setLoading(true);
     try {
       const res = await api.read<{ items: CaseRecord[] }>("search_cases", [
         query.trim(),
@@ -39,6 +50,8 @@ export function CaseRegistryPanel({
       setCases(res.items ?? []);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
     }
   }, [api, query]);
 
@@ -49,36 +62,38 @@ export function CaseRegistryPanel({
 
   async function register() {
     setErr(null);
-    setBusy(true);
+    const { id, done } = tx.runRaw("Register case", (onStatus) =>
+      api.write("register_case", [title, country, matterType, reference], onStatus)
+    );
+    setActiveId(id);
     try {
-      await api.write("register_case", [title, country, matterType, reference], setTx);
+      await done;
       setTitle("");
       setMatterType("");
       setReference("");
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
     }
   }
 
   async function link() {
     setErr(null);
-    setBusy(true);
-    try {
-      await api.write(
+    const { id, done } = tx.runRaw("Link analysis to case", (onStatus) =>
+      api.write(
         "link_analysis_to_case",
         [Number(linkCase), Number(linkAnalysis)],
-        setTx
-      );
+        onStatus
+      )
+    );
+    setActiveId(id);
+    try {
+      await done;
       setLinkCase("");
       setLinkAnalysis("");
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -96,14 +111,19 @@ export function CaseRegistryPanel({
           <input
             type="text"
             value={title}
+            disabled={busy}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Acme Corp — regulatory review"
           />
         </div>
         <div className="field">
           <label>Jurisdiction</label>
-          <select value={country} onChange={(e) => setCountry(e.target.value)}>
-            {JURISDICTIONS.map((j) => (
+          <select
+            value={country}
+            disabled={busy}
+            onChange={(e) => setCountry(e.target.value)}
+          >
+            {jurisdictions.map((j) => (
               <option key={j.code} value={j.code}>
                 {j.label} ({j.code})
               </option>
@@ -115,6 +135,7 @@ export function CaseRegistryPanel({
           <input
             type="text"
             value={matterType}
+            disabled={busy}
             onChange={(e) => setMatterType(e.target.value)}
             placeholder="criminal / civil / regulatory"
           />
@@ -124,6 +145,7 @@ export function CaseRegistryPanel({
           <input
             type="text"
             value={reference}
+            disabled={busy}
             onChange={(e) => setReference(e.target.value)}
             placeholder="e.g. MAT-2026-0142"
           />
@@ -133,8 +155,9 @@ export function CaseRegistryPanel({
         className="primary"
         onClick={register}
         disabled={!connected || !api.ready || busy || !title.trim()}
+        title={!connected ? "Connect a wallet first" : undefined}
       >
-        Register case
+        {busy ? "Working…" : "Register case"}
       </button>
 
       <hr className="sep" />
@@ -145,6 +168,7 @@ export function CaseRegistryPanel({
           type="text"
           value={linkCase}
           placeholder="case id"
+          disabled={busy}
           onChange={(e) => setLinkCase(e.target.value)}
           style={{ maxWidth: 120 }}
         />
@@ -152,6 +176,7 @@ export function CaseRegistryPanel({
           type="text"
           value={linkAnalysis}
           placeholder="analysis id"
+          disabled={busy}
           onChange={(e) => setLinkAnalysis(e.target.value)}
           style={{ maxWidth: 120 }}
         />
@@ -164,7 +189,7 @@ export function CaseRegistryPanel({
         </button>
       </div>
 
-      <TxStatusView status={tx} />
+      <TxStatusView record={record} />
       {err && <div className="error-box">⚠ {err}</div>}
 
       <hr className="sep" />
@@ -178,12 +203,17 @@ export function CaseRegistryPanel({
           onKeyDown={(e) => e.key === "Enter" && load()}
           style={{ maxWidth: 280 }}
         />
-        <button className="small" onClick={load}>
-          Search
+        <button className="small" onClick={load} disabled={loading}>
+          {loading ? "Loading…" : "Search"}
         </button>
       </div>
 
-      {cases.length === 0 ? (
+      {loading && cases.length === 0 ? (
+        <div className="skeleton-list">
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+        </div>
+      ) : cases.length === 0 ? (
         <p className="muted">No cases registered yet.</p>
       ) : (
         cases.map((c) => (

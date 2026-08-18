@@ -1,41 +1,50 @@
 import { useMemo, useState } from "react";
 import type { ToolDef } from "../tools";
 import type { GenLayerApi } from "../useGenLayer";
-import type { AnalysisResult, SampleScenario, TxStatus } from "../types";
-import { JURISDICTIONS } from "../config";
+import type { SampleScenario } from "../types";
+import type { Jurisdiction } from "../config";
+import { useTx } from "../tx/TxContext";
 import { TxStatusView } from "./TxStatusView";
 import { ResultCard } from "./ResultCard";
 
 /**
- * Generic, config-driven panel for a single Lawguard AI tool. It renders the
- * tool's form fields, validates required inputs, submits the corresponding
- * on-chain write, tracks the transaction lifecycle, and displays the parsed,
- * consensus-backed result.
+ * Config-driven panel for a single Lawguard AI tool. Renders the form, submits
+ * the write through the app-level transaction manager (so it survives tab
+ * switches), and displays the consensus-backed result once accepted on-chain.
  */
 export function ToolPanel({
   tool,
   api,
   connected,
   samples,
+  jurisdictions,
 }: {
   tool: ToolDef;
   api: GenLayerApi;
   connected: boolean;
   samples: SampleScenario[];
+  jurisdictions: Jurisdiction[];
 }) {
+  const tx = useTx();
   const initial = useMemo(() => {
     const v: Record<string, string> = {};
     for (const f of tool.fields) {
-      v[f.name] = f.type === "country" ? JURISDICTIONS[0].code : "";
+      v[f.name] = f.type === "country" ? jurisdictions[0]?.code ?? "US" : "";
     }
     return v;
-  }, [tool]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, jurisdictions.length]);
 
   const [values, setValues] = useState<Record<string, string>>(initial);
-  const [tx, setTx] = useState<TxStatus>({ phase: "idle" });
-  const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const record = tx.get(activeId);
+  const running =
+    record?.phase === "signing" ||
+    record?.phase === "pending" ||
+    record?.phase === "accepted";
+  const result = record?.result ?? null;
+  const error = record?.error ?? null;
 
   const set = (name: string, value: string) =>
     setValues((prev) => ({ ...prev, [name]: value }));
@@ -46,34 +55,17 @@ export function ToolPanel({
     .filter((f) => f.required)
     .some((f) => !values[f.name] || values[f.name].trim() === "");
 
-  async function submit() {
-    setError(null);
-    setResult(null);
-    setBusy(true);
-    setTx({ phase: "signing" });
-    try {
-      const args = tool.buildArgs(values);
-      // Submit the write and wait for FINALIZED consensus.
-      await api.write(tool.fn, args, setTx);
-      // A GenLayer write commits its result to on-chain state. Every tool run
-      // stores exactly one analysis (fail-safe results included), so the newest
-      // ledger entry is the one this call just produced. Read it back.
-      const listing = await api.read<{ items: AnalysisResult[] }>(
-        "list_analyses",
-        [1, 0]
-      );
-      const latest = listing.items?.[0];
-      if (latest) {
-        setResult(latest);
-      } else {
-        setError("Transaction finalized but no analysis was found in the ledger.");
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  function submit() {
+    const args = tool.buildArgs(values);
+    const id = tx.run(api, tool, args);
+    setActiveId(id);
   }
+
+  const disabledReason = !connected
+    ? "Connect a wallet first (top-right)"
+    : !api.hasContract
+    ? "Set a deployed contract address"
+    : undefined;
 
   return (
     <div className="panel">
@@ -93,6 +85,7 @@ export function ToolPanel({
             <button
               key={s.label}
               className="small ghost"
+              disabled={running}
               onClick={() =>
                 setValues((prev) => ({ ...prev, ...initial, ...s.fields }))
               }
@@ -113,9 +106,10 @@ export function ToolPanel({
             <select
               id={`${tool.key}-${f.name}`}
               value={values[f.name]}
+              disabled={running}
               onChange={(e) => set(f.name, e.target.value)}
             >
-              {JURISDICTIONS.map((j) => (
+              {jurisdictions.map((j) => (
                 <option key={j.code} value={j.code}>
                   {j.label} ({j.code})
                 </option>
@@ -126,6 +120,7 @@ export function ToolPanel({
               id={`${tool.key}-${f.name}`}
               value={values[f.name]}
               placeholder={f.placeholder}
+              disabled={running}
               onChange={(e) => set(f.name, e.target.value)}
             />
           ) : (
@@ -134,6 +129,7 @@ export function ToolPanel({
               type="text"
               value={values[f.name]}
               placeholder={f.placeholder}
+              disabled={running}
               onChange={(e) => set(f.name, e.target.value)}
             />
           )}
@@ -145,32 +141,29 @@ export function ToolPanel({
         <button
           className="primary"
           onClick={submit}
-          disabled={!connected || !api.ready || busy || missingRequired}
-          title={
-            !connected
-              ? "Connect a wallet first"
-              : !api.ready
-              ? "Set a deployed contract address"
-              : undefined
-          }
+          disabled={!!disabledReason || running || missingRequired}
+          title={disabledReason}
         >
-          {busy ? "Running under consensus…" : `Run ${tool.title}`}
+          {running ? "Running under consensus…" : `Run ${tool.title}`}
         </button>
         <button
           className="ghost small"
           onClick={() => {
             setValues(initial);
-            setResult(null);
-            setError(null);
-            setTx({ phase: "idle" });
+            setActiveId(null);
           }}
-          disabled={busy}
+          disabled={running}
         >
           Reset
         </button>
+        {running && (
+          <span className="faint" style={{ fontSize: 12 }}>
+            You can switch tabs — this keeps running (see the tracker below).
+          </span>
+        )}
       </div>
 
-      <TxStatusView status={tx} />
+      <TxStatusView record={record} />
       {error && <div className="error-box">⚠ {error}</div>}
       {result && <ResultCard result={result} />}
     </div>

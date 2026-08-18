@@ -39,6 +39,12 @@ export function AlertsPanel({ api }: { api: GenLayerApi }) {
         </button>
       </div>
       {err && <div className="error-box">⚠ {err}</div>}
+      {loading && alerts.length === 0 && (
+        <div className="skeleton-list" style={{ marginTop: 12 }}>
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+        </div>
+      )}
       {alerts.length === 0 && !loading && (
         <p className="muted">No alerts. Grounded results with adequate confidence do not raise flags.</p>
       )}

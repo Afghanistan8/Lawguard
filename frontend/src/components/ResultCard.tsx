@@ -13,6 +13,32 @@ const CONF_BADGE: Record<string, string> = {
   LOW: "warn",
 };
 
+/** What a reviewing lawyer can do next, per non-verified status. */
+const STATUS_GUIDANCE: Partial<Record<AnalysisStatus, { cls: string; text: string }>> = {
+  INSUFFICIENT_EVIDENCE: {
+    cls: "warn",
+    text:
+      "The trusted sources fetched did not clearly contain the answer (often the " +
+      "landing page, not the provision text). Add a deep link to the exact " +
+      "statute/section in “Additional trusted source URLs” (it must sit under an " +
+      "already-trusted official origin) and re-run.",
+  },
+  UNAVAILABLE: {
+    cls: "danger",
+    text:
+      "Trusted sources were unreachable, or none are configured for this " +
+      "jurisdiction. Check the Trusted sources tab, add an official HTTPS source, " +
+      "or retry — some sites intermittently block automated fetches.",
+  },
+  CONFLICT: {
+    cls: "danger",
+    text:
+      "Sources suggest the provision may be amended, repealed, superseded, or in " +
+      "conflict with other legislation. Review the notes and cited sources with " +
+      "counsel before relying on it.",
+  },
+};
+
 /**
  * Renders a normalised on-chain analysis result: status, citation, exact text
  * or summary, applicability meter, confidence, sources, notes, and the
@@ -37,6 +63,13 @@ export function ResultCard({ result }: { result: AnalysisResult }) {
         )}
         {result.citation && <span className="cite">{result.citation}</span>}
       </div>
+
+      {STATUS_GUIDANCE[result.status] && (
+        <div className={`callout ${STATUS_GUIDANCE[result.status]!.cls}`}>
+          <strong>What you can do next:</strong>{" "}
+          {STATUS_GUIDANCE[result.status]!.text}
+        </div>
+      )}
 
       <div className="block-label">Applicability</div>
       <div className="row" style={{ gap: 12 }}>

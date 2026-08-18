@@ -1,13 +1,31 @@
 {
   "meta": {
     "name": "Lawguard sample scenarios",
-    "note": "Illustrative inputs for demonstrating Lawguard tools. These are generic examples for professional review only — not legal advice.",
-    "version": 1
+    "note": "Illustrative inputs for demonstrating Lawguard tools. These are generic examples for professional review only — not legal advice. Scenarios with a deep-link 'trusted_urls' are the most likely to return VERIFIED because they point at the exact provision text under an already-trusted official origin.",
+    "version": 2
   },
   "scenarios": [
     {
       "tool": "verify_statute",
-      "label": "US — wire fraud statute",
+      "label": "UK — theft (deep link → likely VERIFIED)",
+      "fields": {
+        "crime_or_charge": "theft",
+        "country": "UK",
+        "trusted_urls": "https://www.legislation.gov.uk/ukpga/1968/60/section/1"
+      }
+    },
+    {
+      "tool": "extract_law_text",
+      "label": "UK — Theft Act 1968 s.1 (deep link)",
+      "fields": {
+        "statute_citation": "Theft Act 1968, section 1",
+        "country": "UK",
+        "trusted_urls": "https://www.legislation.gov.uk/ukpga/1968/60/section/1"
+      }
+    },
+    {
+      "tool": "verify_statute",
+      "label": "US — wire fraud (landing pages → may be INSUFFICIENT)",
       "fields": {
         "crime_or_charge": "wire fraud",
         "country": "US",
@@ -16,11 +34,11 @@
     },
     {
       "tool": "verify_statute",
-      "label": "UK — theft offence",
+      "label": "US — wire fraud (deep link → likely VERIFIED)",
       "fields": {
-        "crime_or_charge": "theft",
-        "country": "UK",
-        "trusted_urls": ""
+        "crime_or_charge": "wire fraud",
+        "country": "US",
+        "trusted_urls": "https://www.govinfo.gov/content/pkg/USCODE-2022-title18/html/USCODE-2022-title18-partI-chap63-sec1343.htm"
       }
     },
     {
@@ -29,7 +47,7 @@
       "fields": {
         "statute_citation": "17 U.S.C. § 106",
         "country": "US",
-        "trusted_urls": ""
+        "trusted_urls": "https://www.govinfo.gov/content/pkg/USCODE-2022-title17/html/USCODE-2022-title17-chap1-sec106.htm"
       }
     },
     {
@@ -67,7 +85,7 @@
       "fields": {
         "statute_citation": "s.1 Theft Act 1968",
         "country": "UK",
-        "trusted_urls": ""
+        "trusted_urls": "https://www.legislation.gov.uk/ukpga/1968/60/section/1"
       }
     },
     {
@@ -85,6 +103,15 @@
       "fields": {
         "subject": "money laundering under Canadian federal law",
         "country": "CA",
+        "trusted_urls": ""
+      }
+    },
+    {
+      "tool": "verify_statute",
+      "label": "AU — theft/larceny (fail-safe demo)",
+      "fields": {
+        "crime_or_charge": "larceny",
+        "country": "AU",
         "trusted_urls": ""
       }
     }

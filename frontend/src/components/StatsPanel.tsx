@@ -45,13 +45,22 @@ export function StatsPanel({ api }: { api: GenLayerApi }) {
       </div>
       {err && <div className="error-box">⚠ {err}</div>}
       <div className="grid cols-4" style={{ marginTop: 12 }}>
-        {CELLS.map((c) => (
-          <div className="stat" key={c.key}>
-            <div className="n">{stats ? stats[c.key] : "—"}</div>
-            <div className="k">{c.label}</div>
-          </div>
-        ))}
+        {CELLS.map((c) =>
+          loading && !stats ? (
+            <div className="skeleton-stat" key={c.key} />
+          ) : (
+            <div className="stat" key={c.key}>
+              <div className="n">{stats ? stats[c.key] : "—"}</div>
+              <div className="k">{c.label}</div>
+            </div>
+          )
+        )}
       </div>
+      {!api.ready && (
+        <p className="faint" style={{ marginTop: 10, fontSize: 12 }}>
+          Set a contract address in the Connection bar to load statistics.
+        </p>
+      )}
     </div>
   );
 }
