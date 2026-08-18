@@ -49,3 +49,6 @@ coverage/
 # Stray tsc project-reference emit from vite.config
 frontend/vite.config.js
 frontend/vite.config.d.ts
+
+# Vercel local project link
+.vercel/
