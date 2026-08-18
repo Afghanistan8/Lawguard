@@ -37,7 +37,7 @@ export default function App() {
   // ---- wallet + client ----
   const wallet = useWallet();
   const [contractAddress, setContractAddress] = useState<string>(CONTRACT_ADDRESS);
-  const api = useGenLayer(wallet.account, contractAddress);
+  const api = useGenLayer(contractAddress);
 
   // ---- navigation ----
   const [nav, setNav] = useState<Nav>("tools");
@@ -135,8 +135,6 @@ export default function App() {
           consensus-validated, and permanently auditable on-chain.
         </div>
       </main>
-
-      <Disclaimer sticky />
     </div>
   );
 }
@@ -160,7 +158,7 @@ function ContractSetup({
         <div>
           <h2 style={{ fontSize: 16 }}>Connection</h2>
           <p className="desc" style={{ marginBottom: 0 }}>
-            {connected ? "Wallet connected." : "Connect a demo wallet (top-right)."}{" "}
+            {connected ? "Wallet connected." : "Connect your wallet (top-right)."}{" "}
             {ready
               ? "Contract configured — you're ready to run tools."
               : "Enter your deployed Lawguard contract address to enable writes."}

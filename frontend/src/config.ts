@@ -4,15 +4,20 @@
  * Values are read from Vite env vars (`import.meta.env`) with safe defaults so
  * the app boots even before a contract is deployed. See `.env.example`.
  */
-import { studionet, localnet, testnetAsimov } from "genlayer-js/chains";
+import { studionet, localnet, testnetAsimov, testnetBradbury } from "genlayer-js/chains";
 import type { GenLayerChain } from "genlayer-js/types";
 
-export type NetworkKey = "studionet" | "localnet" | "testnet_asimov";
+export type NetworkKey =
+  | "studionet"
+  | "localnet"
+  | "testnet_asimov"
+  | "testnet_bradbury";
 
 const NETWORKS: Record<NetworkKey, GenLayerChain> = {
   studionet,
   localnet,
   testnet_asimov: testnetAsimov,
+  testnet_bradbury: testnetBradbury,
 };
 
 const rawNetwork = (import.meta.env.VITE_GENLAYER_NETWORK ?? "studionet") as string;
@@ -21,6 +26,26 @@ export const NETWORK_KEY: NetworkKey = (
 ) as NetworkKey;
 
 export const CHAIN: GenLayerChain = NETWORKS[NETWORK_KEY];
+
+/**
+ * EVM `wallet_addEthereumChain` parameters for the active network, derived from
+ * the genlayer-js chain. Used by the wallet layer to add/switch a browser
+ * wallet (MetaMask, OKX, …) onto the GenLayer chain before signing.
+ */
+export const NET = {
+  chainId: "0x" + CHAIN.id.toString(16),
+  chainIdDecimal: CHAIN.id,
+  chainName: CHAIN.name,
+  rpcUrls: [...CHAIN.rpcUrls.default.http],
+  blockExplorerUrls: CHAIN.blockExplorers
+    ? [CHAIN.blockExplorers.default.url]
+    : [],
+  nativeCurrency: CHAIN.nativeCurrency ?? {
+    name: "GEN",
+    symbol: "GEN",
+    decimals: 18,
+  },
+};
 
 /** Optional explicit RPC override (useful for a local GenLayer Studio). */
 export const RPC_URL_OVERRIDE: string | undefined =

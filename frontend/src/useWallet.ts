@@ -1,94 +1,75 @@
 /**
- * useWallet — lightweight account management for the Lawguard demo.
+ * useWallet — React binding over the EIP-6963 wallet module (src/lib/wallet.ts).
  *
- * GenLayer transactions are signed by a local account. For a Studio/testnet
- * demo we use a *burner* account: a private key generated in-browser (or
- * imported by the user) and persisted in localStorage so the session survives
- * reloads.
- *
- * SECURITY NOTE: A burner key in localStorage is appropriate ONLY for
- * demos/testnets with no real funds. For production, integrate a proper wallet
- * provider (e.g. MetaMask via EIP-1193) and never persist private keys. The
- * `importKey` path lets a firm paste a dedicated testnet key instead.
+ * Exposes the current wallet snapshot and connect/disconnect actions, discovers
+ * injected wallets (MetaMask, OKX, …), and attempts a silent reconnect on load.
+ * Signing is done by the connected browser wallet — there is no private-key
+ * import and no local burner account.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createAccount } from "genlayer-js";
-import type { Account } from "genlayer-js/types";
+import { useCallback, useEffect, useState } from "react";
+import {
+  connect as walletConnect,
+  disconnect as walletDisconnect,
+  getDiscoveredWallets,
+  getState,
+  hasWallet,
+  subscribe,
+  trySilentReconnect,
+  type DiscoveredWallet,
+  type WalletSnapshot,
+} from "./lib/wallet";
 
-const STORAGE_KEY = "lawguard.burner.pk";
-
-type Hex = `0x${string}`;
-
-/** Generate a 32-byte secp256k1 private key using the Web Crypto API. */
-function generatePrivateKey(): Hex {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  const hex = Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return `0x${hex}` as Hex;
-}
-
-function isValidKey(key: string): key is Hex {
-  return /^0x[0-9a-fA-F]{64}$/.test(key.trim());
-}
+export type { DiscoveredWallet } from "./lib/wallet";
 
 export interface WalletState {
-  account: Account | null;
   address: string | null;
   connected: boolean;
-  connect: () => void;
-  importKey: (key: string) => { ok: boolean; error?: string };
+  /** Wallet is connected AND on the correct GenLayer chain. */
+  onChain: boolean;
+  discovered: DiscoveredWallet[];
+  hasWallet: boolean;
+  connect: (detail?: DiscoveredWallet) => Promise<{ ok: boolean; error?: string }>;
   disconnect: () => void;
-  exportKey: () => string | null;
 }
 
 export function useWallet(): WalletState {
-  const [privateKey, setPrivateKey] = useState<Hex | null>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored && isValidKey(stored) ? (stored as Hex) : null;
-  });
-
-  const account = useMemo<Account | null>(() => {
-    if (!privateKey) return null;
-    try {
-      return createAccount(privateKey);
-    } catch {
-      return null;
-    }
-  }, [privateKey]);
+  const [snap, setSnap] = useState<WalletSnapshot>(() => getState());
+  const [discovered, setDiscovered] = useState<DiscoveredWallet[]>(() =>
+    getDiscoveredWallets()
+  );
 
   useEffect(() => {
-    if (privateKey) localStorage.setItem(STORAGE_KEY, privateKey);
-  }, [privateKey]);
-
-  const connect = useCallback(() => {
-    setPrivateKey((prev) => prev ?? generatePrivateKey());
+    const unsub = subscribe(setSnap);
+    // EIP-6963 announcements can arrive just after mount; refresh the list.
+    const t = setTimeout(() => setDiscovered(getDiscoveredWallets()), 300);
+    void trySilentReconnect();
+    return () => {
+      unsub();
+      clearTimeout(t);
+    };
   }, []);
 
-  const importKey = useCallback((key: string) => {
-    const trimmed = key.trim();
-    if (!isValidKey(trimmed)) {
-      return { ok: false, error: "Expected a 0x-prefixed 64-hex-char key." };
+  const connect = useCallback(async (detail?: DiscoveredWallet) => {
+    try {
+      await walletConnect(detail);
+      return { ok: true };
+    } catch (e) {
+      return {
+        ok: false,
+        error: e instanceof Error ? e.message : "Wallet connection failed.",
+      };
     }
-    setPrivateKey(trimmed as Hex);
-    return { ok: true };
   }, []);
 
-  const disconnect = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    setPrivateKey(null);
-  }, []);
-
-  const exportKey = useCallback(() => privateKey, [privateKey]);
+  const disconnect = useCallback(() => walletDisconnect(), []);
 
   return {
-    account,
-    address: account ? (account.address as string) : null,
-    connected: !!account,
+    address: snap.address,
+    connected: !!snap.address,
+    onChain: snap.onChain,
+    discovered,
+    hasWallet: hasWallet(),
     connect,
-    importKey,
     disconnect,
-    exportKey,
   };
 }

@@ -1,24 +1,25 @@
 /**
- * useGenLayer — creates a genlayer-js client bound to the connected account and
- * target chain, and exposes typed read/write helpers for the Lawguard contract.
+ * useGenLayer — genlayer-js client access for Lawguard.
  *
- * Reads use `readContract` (no gas, instant). Writes use `writeContract`, which
- * returns a transaction hash; the transaction is then tracked through its
- * lifecycle (signing → pending → accepted → finalized) via
- * `waitForTransactionReceipt`. Because a GenLayer write returns its value into
- * on-chain state (not directly to the caller), callers read the result back
- * from a view method after finality — see `ToolPanel`.
+ * Reads use a lightweight chain-only client (no wallet required), so the ledger,
+ * stats, alerts and sources load for anyone. Writes build a signing client per
+ * call from the connected browser wallet — after a hard chain gate
+ * (`ensureNetwork`) — mirroring the proven epl27-predict setup:
+ *   createClient({ chain, account, provider })
+ *
+ * The wallet is the exact provider the user chose (EIP-6963), so a multi-wallet
+ * browser never signs from the wrong extension.
  */
 import { useCallback, useMemo, useState } from "react";
 import { createClient } from "genlayer-js";
 import {
   TransactionStatus,
-  type Account,
   type CalldataEncodable,
   type GenLayerChain,
   type TransactionHash,
 } from "genlayer-js/types";
 import { CHAIN, CONTRACT_ADDRESS, RPC_URL_OVERRIDE } from "./config";
+import { ensureNetwork } from "./lib/wallet";
 import type { TxStatus } from "./types";
 
 type Address = `0x${string}`;
@@ -37,14 +38,15 @@ function resolveChain(): GenLayerChain {
 }
 
 export interface GenLayerApi {
+  /** True once a contract address is configured (reads are wallet-free). */
   ready: boolean;
   contractAddress: string;
   hasContract: boolean;
   /** Read a view method and JSON-parse the returned string. */
   read: <T = unknown>(functionName: string, args?: unknown[]) => Promise<T>;
   /**
-   * Call a write method, tracking tx phases. Resolves once the transaction is
-   * FINALIZED. Read the resulting state via `read` afterward.
+   * Call a write method through the connected wallet, tracking tx phases
+   * (signing → pending → accepted → finalized). Resolves once FINALIZED.
    */
   write: (
     functionName: string,
@@ -65,31 +67,27 @@ function parseMaybeJson<T>(value: unknown): T {
 }
 
 export function useGenLayer(
-  account: Account | null,
   contractAddress: string = CONTRACT_ADDRESS
 ): GenLayerApi {
   const [chain] = useState<GenLayerChain>(() => resolveChain());
 
-  const client = useMemo(() => {
-    if (!account) return null;
-    return createClient({ chain, account });
-  }, [account, chain]);
+  // Read-only client: chain only, no wallet needed.
+  const readClient = useMemo(() => createClient({ chain }), [chain]);
 
   const hasContract = /^0x[0-9a-fA-F]{40}$/.test(contractAddress);
-  const ready = !!client && hasContract;
+  const ready = hasContract;
 
   const read = useCallback(
     async <T,>(functionName: string, args: unknown[] = []): Promise<T> => {
-      if (!client) throw new Error("Connect an account first.");
       if (!hasContract) throw new Error("No contract address configured.");
-      const res = await client.readContract({
+      const res = await readClient.readContract({
         address: contractAddress as Address,
         functionName,
         args: args as CalldataEncodable[],
       });
       return parseMaybeJson<T>(res);
     },
-    [client, contractAddress, hasContract]
+    [readClient, contractAddress, hasContract]
   );
 
   const write = useCallback(
@@ -98,10 +96,25 @@ export function useGenLayer(
       args: unknown[],
       onStatus?: (s: TxStatus) => void
     ): Promise<void> => {
-      if (!client) throw new Error("Connect an account first.");
       if (!hasContract) throw new Error("No contract address configured.");
       try {
-        onStatus?.({ phase: "signing", message: "Awaiting signature…" });
+        onStatus?.({ phase: "signing", message: "Confirm in your wallet…" });
+
+        // Hard gate: guarantee the wallet is on the GenLayer chain before
+        // signing, then build a signing client bound to the chosen provider.
+        const provider = await ensureNetwork();
+        const accounts = (await provider.request({
+          method: "eth_requestAccounts",
+        })) as string[];
+        const addr = accounts?.[0];
+        if (!addr) throw new Error("Wallet not connected.");
+
+        const client = createClient({
+          chain,
+          account: addr as Address,
+          provider,
+        });
+
         const hash = (await client.writeContract({
           address: contractAddress as Address,
           functionName,
@@ -115,11 +128,10 @@ export function useGenLayer(
           message: "Submitted to network…",
         });
 
-        // First wait for the transaction to be ACCEPTED by the leader.
         await client.waitForTransactionReceipt({
           hash,
           status: TransactionStatus.ACCEPTED,
-          interval: 3000,
+          interval: 5000,
           retries: 40,
         });
         onStatus?.({
@@ -128,11 +140,10 @@ export function useGenLayer(
           message: "Accepted — awaiting validator finality…",
         });
 
-        // Then wait for validator FINALIZED consensus.
         await client.waitForTransactionReceipt({
           hash,
           status: TransactionStatus.FINALIZED,
-          interval: 3000,
+          interval: 5000,
           retries: 60,
         });
         onStatus?.({
@@ -146,7 +157,7 @@ export function useGenLayer(
         throw err;
       }
     },
-    [client, contractAddress, hasContract]
+    [chain, contractAddress, hasContract]
   );
 
   return { ready, contractAddress, hasContract, read, write };
