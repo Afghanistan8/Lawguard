@@ -1,0 +1,92 @@
+{
+  "meta": {
+    "name": "Lawguard sample scenarios",
+    "note": "Illustrative inputs for demonstrating Lawguard tools. These are generic examples for professional review only — not legal advice.",
+    "version": 1
+  },
+  "scenarios": [
+    {
+      "tool": "verify_statute",
+      "label": "US — wire fraud statute",
+      "fields": {
+        "crime_or_charge": "wire fraud",
+        "country": "US",
+        "trusted_urls": ""
+      }
+    },
+    {
+      "tool": "verify_statute",
+      "label": "UK — theft offence",
+      "fields": {
+        "crime_or_charge": "theft",
+        "country": "UK",
+        "trusted_urls": ""
+      }
+    },
+    {
+      "tool": "extract_law_text",
+      "label": "US — copyright exclusive rights (17 U.S.C. § 106)",
+      "fields": {
+        "statute_citation": "17 U.S.C. § 106",
+        "country": "US",
+        "trusted_urls": ""
+      }
+    },
+    {
+      "tool": "screen_application",
+      "label": "US — screening a fraud charge application",
+      "fields": {
+        "described_application": "The prosecution alleges use of interstate electronic communications to obtain funds by deception across state lines.",
+        "country": "US",
+        "statute_hint": "18 U.S.C. § 1343",
+        "trusted_urls": ""
+      }
+    },
+    {
+      "tool": "compare_jurisdictions",
+      "label": "US vs UK — insider trading",
+      "fields": {
+        "crime_or_topic": "insider trading",
+        "country_a": "US",
+        "country_b": "UK",
+        "trusted_urls": ""
+      }
+    },
+    {
+      "tool": "check_statute_of_limitations",
+      "label": "US — breach of written contract deadline",
+      "fields": {
+        "crime_or_claim": "breach of written contract",
+        "country": "US",
+        "trusted_urls": ""
+      }
+    },
+    {
+      "tool": "check_conflicts",
+      "label": "UK — Theft Act 1968 s.1 currency check",
+      "fields": {
+        "statute_citation": "s.1 Theft Act 1968",
+        "country": "UK",
+        "trusted_urls": ""
+      }
+    },
+    {
+      "tool": "map_facts_to_provisions",
+      "label": "EU — data misuse fact pattern",
+      "fields": {
+        "fact_description": "A company processed personal data of EU residents for profiling without a documented lawful basis and without informing the data subjects.",
+        "country": "EU",
+        "trusted_urls": ""
+      }
+    },
+    {
+      "tool": "generate_verification_report",
+      "label": "CA — money laundering reference report",
+      "fields": {
+        "subject": "money laundering under Canadian federal law",
+        "country": "CA",
+        "trusted_urls": ""
+      }
+    }
+  ]
+}

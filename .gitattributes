@@ -1,0 +1,10 @@
+# Normalize line endings: store text as LF in the repo (consistent across OSes
+# and CI/Vercel Linux builds), regardless of local checkout settings.
+* text=auto eol=lf
+
+# Treat these as binary (never normalized).
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" role="img" aria-label="Lawguard architecture">
+  <defs>
+    <style>
+      .box { fill:#ffffff; stroke:#c2cad6; stroke-width:2; rx:10; }
+      .brand { fill:#1f3a5f; }
+      .lbl { font-family:Segoe UI, Arial, sans-serif; font-size:15px; fill:#16202e; }
+      .lblw { font-family:Segoe UI, Arial, sans-serif; font-size:15px; fill:#ffffff; }
+      .sub { font-family:Segoe UI, Arial, sans-serif; font-size:12px; fill:#5b6675; }
+      .subw { font-family:Segoe UI, Arial, sans-serif; font-size:12px; fill:#c9d4e3; }
+      .ttl { font-family:Segoe UI, Arial, sans-serif; font-size:13px; font-weight:700; fill:#b48a3c; letter-spacing:1px; }
+      .flow { stroke:#8a94a3; stroke-width:2; fill:none; marker-end:url(#arw); }
+    </style>
+    <marker id="arw" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#8a94a3"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="560" fill="#f5f6f8"/>
+
+  <!-- Frontend -->
+  <text x="60" y="46" class="ttl">FRONTEND · React + TypeScript + genlayer-js</text>
+  <rect x="60" y="60" width="880" height="90" rx="10" class="box"/>
+  <rect x="80" y="80" width="180" height="50" rx="8" fill="#e4eef6" stroke="#23557a"/>
+  <text x="96" y="100" class="lbl">Tool panels (8)</text>
+  <text x="96" y="118" class="sub">verify / screen / extract…</text>
+  <rect x="280" y="80" width="160" height="50" rx="8" fill="#e4eef6" stroke="#23557a"/>
+  <text x="296" y="100" class="lbl">useWallet</text>
+  <text x="296" y="118" class="sub">burner / imported key</text>
+  <rect x="460" y="80" width="180" height="50" rx="8" fill="#e4eef6" stroke="#23557a"/>
+  <text x="476" y="100" class="lbl">useGenLayer</text>
+  <text x="476" y="118" class="sub">client · tx lifecycle</text>
+  <rect x="660" y="80" width="260" height="50" rx="8" fill="#e4eef6" stroke="#23557a"/>
+  <text x="676" y="100" class="lbl">Ledger · Alerts · Cases · Stats</text>
+  <text x="676" y="118" class="sub">read views, audit trail</text>
+
+  <path class="flow" d="M500,150 L500,185"/>
+  <text x="512" y="173" class="sub">read / write RPC (genlayer-js)</text>
+
+  <!-- Contract -->
+  <text x="60" y="212" class="ttl">GENLAYER INTELLIGENT CONTRACT · contracts/lawguard.py</text>
+  <rect x="60" y="226" width="880" height="150" rx="10" fill="#1f3a5f"/>
+  <rect x="80" y="248" width="250" height="60" rx="8" fill="#26456e" stroke="#d3ab5e"/>
+  <text x="96" y="270" class="lblw">Write tools (@gl.public.write)</text>
+  <text x="96" y="290" class="subw">validate → resolve sources → analyse</text>
+  <rect x="350" y="248" width="270" height="60" rx="8" fill="#26456e" stroke="#d3ab5e"/>
+  <text x="366" y="270" class="lblw">Equivalence Principle</text>
+  <text x="366" y="290" class="subw">strict_eq / prompt_comparative</text>
+  <rect x="640" y="248" width="280" height="60" rx="8" fill="#26456e" stroke="#d3ab5e"/>
+  <text x="656" y="270" class="lblw">Typed persistent state</text>
+  <text x="656" y="290" class="subw">TreeMap · DynArray · u256</text>
+
+  <rect x="80" y="322" width="400" height="38" rx="8" fill="#26456e" stroke="#6ea8dc"/>
+  <text x="96" y="346" class="lblw">Fail-safe: UNAVAILABLE / INSUFFICIENT_EVIDENCE</text>
+  <rect x="500" y="322" width="420" height="38" rx="8" fill="#26456e" stroke="#6ea8dc"/>
+  <text x="516" y="346" class="lblw">Auto-alerts on low confidence / conflict / no source</text>
+
+  <path class="flow" d="M300,376 L300,420"/>
+  <text x="312" y="402" class="sub">gl.nondet.web.render (HTTPS only, UNTRUSTED markers)</text>
+  <path class="flow" d="M700,376 L700,420"/>
+  <text x="712" y="402" class="sub">gl.nondet.exec_prompt (grounded)</text>
+
+  <!-- Sources / LLM -->
+  <text x="60" y="446" class="ttl">TRUSTED PRIMARY SOURCES &amp; VALIDATOR LLMs (non-deterministic, under consensus)</text>
+  <rect x="60" y="460" width="430" height="80" rx="10" class="box"/>
+  <text x="80" y="486" class="lbl">Official law sources (country-aware)</text>
+  <text x="80" y="508" class="sub">congress.gov · legislation.gov.uk · eur-lex ·</text>
+  <text x="80" y="524" class="sub">canlii · austlii · indiacode · courts…</text>
+  <rect x="510" y="460" width="430" height="80" rx="10" class="box"/>
+  <text x="530" y="486" class="lbl">Leader + Validators</text>
+  <text x="530" y="508" class="sub">Each independently fetches + analyses; result is</text>
+  <text x="530" y="524" class="sub">committed only when decision fields agree.</text>
+</svg>

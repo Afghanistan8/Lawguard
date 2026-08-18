@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 520" role="img" aria-label="Lawguard tools overview">
+  <defs>
+    <style>
+      .card { fill:#ffffff; stroke:#c2cad6; stroke-width:1.5; }
+      .t { font-family:Segoe UI, Arial, sans-serif; font-size:14px; font-weight:700; fill:#1f3a5f; }
+      .d { font-family:Segoe UI, Arial, sans-serif; font-size:11.5px; fill:#5b6675; }
+      .num { font-family:Segoe UI, Arial, sans-serif; font-size:12px; font-weight:700; fill:#b48a3c; }
+    </style>
+  </defs>
+  <rect width="1000" height="520" fill="#f5f6f8"/>
+  <text x="40" y="44" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" fill="#1f3a5f">Lawguard specialised tools</text>
+  <text x="40" y="68" class="d">Each tool is a consensus-backed on-chain write, grounded in trusted primary sources.</text>
+
+  <!-- 8 AI tools + 2 registry, 5x2 grid -->
+  <g>
+    <!-- row 1 -->
+    <rect x="40"  y="90"  width="290" height="86" rx="10" class="card"/>
+    <text x="58" y="116" class="num">01</text><text x="88" y="116" class="t">Verify Statute</text>
+    <text x="58" y="140" class="d">Confirm the statute/code section for a</text>
+    <text x="58" y="156" class="d">crime or charge in a jurisdiction.</text>
+
+    <rect x="355" y="90"  width="290" height="86" rx="10" class="card"/>
+    <text x="373" y="116" class="num">02</text><text x="403" y="116" class="t">Screen Application</text>
+    <text x="373" y="140" class="d">Is a law's application consistent with</text>
+    <text x="373" y="156" class="d">statute + case law? (never judges guilt)</text>
+
+    <rect x="670" y="90"  width="290" height="86" rx="10" class="card"/>
+    <text x="688" y="116" class="num">03</text><text x="718" y="116" class="t">Extract Law Text</text>
+    <text x="688" y="140" class="d">Return the exact current text of a</text>
+    <text x="688" y="156" class="d">provision with citation + source.</text>
+
+    <!-- row 2 -->
+    <rect x="40"  y="196" width="290" height="86" rx="10" class="card"/>
+    <text x="58" y="222" class="num">04</text><text x="88" y="222" class="t">Cross-Jurisdiction</text>
+    <text x="58" y="246" class="d">Compare the same crime/topic across</text>
+    <text x="58" y="262" class="d">two countries.</text>
+
+    <rect x="355" y="196" width="290" height="86" rx="10" class="card"/>
+    <text x="373" y="222" class="num">05</text><text x="403" y="222" class="t">Statute of Limitations</text>
+    <text x="373" y="246" class="d">Find limitation periods / procedural</text>
+    <text x="373" y="262" class="d">deadlines and the provision setting them.</text>
+
+    <rect x="670" y="196" width="290" height="86" rx="10" class="card"/>
+    <text x="688" y="222" class="num">06</text><text x="718" y="222" class="t">Conflict Check</text>
+    <text x="688" y="246" class="d">Detect amendments, repeals, superseding</text>
+    <text x="688" y="262" class="d">or conflicting legislation.</text>
+
+    <!-- row 3 -->
+    <rect x="40"  y="302" width="290" height="86" rx="10" class="card"/>
+    <text x="58" y="328" class="num">07</text><text x="88" y="328" class="t">Map Facts → Provisions</text>
+    <text x="58" y="352" class="d">Issue-spot the most relevant criminal/</text>
+    <text x="58" y="368" class="d">civil provisions for a fact pattern.</text>
+
+    <rect x="355" y="302" width="290" height="86" rx="10" class="card"/>
+    <text x="373" y="328" class="num">08</text><text x="403" y="328" class="t">Verification Report</text>
+    <text x="373" y="352" class="d">Auditable report: provision, text,</text>
+    <text x="373" y="368" class="d">conflicts, confidence, disclaimer.</text>
+
+    <rect x="670" y="302" width="290" height="86" rx="10" class="card" stroke="#b48a3c"/>
+    <text x="688" y="328" class="num">09</text><text x="718" y="328" class="t">Alerts &amp; Flags</text>
+    <text x="688" y="352" class="d">Auto-raised on low confidence, conflict,</text>
+    <text x="688" y="368" class="d">or unavailable/insufficient sources.</text>
+
+    <!-- row 4 -->
+    <rect x="40"  y="408" width="290" height="86" rx="10" class="card" stroke="#b48a3c"/>
+    <text x="58" y="434" class="num">10</text><text x="88" y="434" class="t">Case Registry</text>
+    <text x="58" y="458" class="d">Privacy-preserving matter records +</text>
+    <text x="58" y="474" class="d">analysis linking (access-controlled).</text>
+
+    <rect x="355" y="408" width="290" height="86" rx="10" class="card" stroke="#23557a"/>
+    <text x="373" y="434" class="num">+</text><text x="403" y="434" class="t">Trusted Sources Admin</text>
+    <text x="373" y="458" class="d">Owner-managed, HTTPS-only, country-</text>
+    <text x="373" y="474" class="d">aware official source registry.</text>
+
+    <rect x="670" y="408" width="290" height="86" rx="10" class="card" stroke="#23557a"/>
+    <text x="688" y="434" class="num">+</text><text x="718" y="434" class="t">Ledger · Search · Stats</text>
+    <text x="688" y="458" class="d">Read views over the full auditable</text>
+    <text x="688" y="474" class="d">history of analyses.</text>
+  </g>
+</svg>

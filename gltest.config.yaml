@@ -1,0 +1,17 @@
+# gltest configuration.
+#
+# The offline unit suite in tests/ does NOT need this file — it runs under plain
+# pytest via the GenVM test double in tests/conftest.py. This file only scopes
+# `paths`/`environment` and selects a default network for optional on-chain
+# integration runs with `genlayer-test`.
+#
+# Valid top-level keys: networks, paths, environment. Hosted networks
+# (studionet / testnet-bradbury) are built in to gltest and are selected via the
+# CLI (`genlayer network set ...`) with an unlocked account — so they are NOT
+# redefined here (redefining a network requires committing account keys, which
+# must never live in the repo).
+paths:
+  contracts: contracts
+  artifacts: artifacts
+
+environment: .env
