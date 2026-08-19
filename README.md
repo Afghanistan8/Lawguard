@@ -46,10 +46,8 @@ confidence). If trusted sources are unavailable or insufficient, Lawguard return
 | --- | --- |
 | **Live demo** | **https://lawguard.vercel.app** ✅ (wired to the StudioNet contract below) |
 | **Contract (StudioNet, chain 61999)** | `0xA7D9B1B288E4D1da9C94aC9b06452c7bdbCfd298` — **live** ✅ |
-| Contract (Bradbury testnet, chain 4221) | `0x7d96FBdb186A2D7233803b795F8b4efdf360Ff47` — live mirror |
 | StudioNet explorer | https://genlayer-explorer.vercel.app |
-| Bradbury explorer | https://explorer-bradbury.genlayer.com/ |
-| Default network | GenLayer StudioNet (`studio.genlayer.com/api`) |
+| Network | **GenLayer StudioNet only** (`studio.genlayer.com/api`, chain 61999) — the app targets no other network. |
 
 > **Deployment note (important):** deploy with a **pinned runner hash** in the magic
 > header, not the `:test` tag —
@@ -165,13 +163,13 @@ Copy the deployed address (`0x…`).
 ### 3. Run the frontend
 ```bash
 cd frontend
-cp .env.example .env          # set VITE_GENLAYER_NETWORK + VITE_LAWGUARD_CONTRACT_ADDRESS
+cp .env.example .env          # set VITE_LAWGUARD_CONTRACT_ADDRESS (StudioNet only)
 npm install
 npm run dev                   # http://localhost:5173
 ```
-`.env.example` documents every variable (network, contract address, optional RPC
-override). The defaults already point at the live StudioNet deployment, so `npm run
-dev` works out of the box.
+`.env.example` documents every variable (contract address, optional RPC override).
+The defaults already point at the live StudioNet deployment, so `npm run dev` works
+out of the box. There is no network selector — the app targets StudioNet only.
 
 ### How to test live
 
@@ -189,7 +187,7 @@ dev` works out of the box.
 4. Watch the transaction: **Signing → Pending → Accepted** (the result appears here — a few
    minutes) → **Finalized** (the extra security window, 5–30 min, watched in the background).
    You can **switch tabs while it runs** — the sticky **Transactions** tracker at the bottom
-   keeps every tx visible with a live timer and **explorer links** (StudioNet + Bradbury).
+   keeps every tx visible with a live timer and a **StudioNet explorer link**.
 
 > Burner keys live in `localStorage` and are for testnets only — never store a funded key.
 > For production, use a real wallet.
@@ -211,8 +209,13 @@ Lawguard is a working, on-chain demo. A few honest caveats:
 - **Wallets on StudioNet.** StudioNet is a hosted simulator; a real wallet must add it as a
   custom chain (the UI guides this). The **burner wallet** is the smoothest path for evaluation
   and is auto-funded there.
+- **StudioNet only, by design.** The app is hardcoded to GenLayer StudioNet (chain 61999) —
+  there is no network selector and no other chain is wired in. If a connected browser wallet is
+  on a different chain, the UI shows "Wrong network" and every write hard-gates through
+  `ensureNetwork()`, which forces (or blocks on) a switch to StudioNet before signing — so a
+  transaction can never be silently sent to the wrong network.
 - **Deploy header.** Deploy with the **pinned runner hash** (see the deploy note above), not
-  `py-genlayer:test`, which does not currently resolve on the hosted networks.
+  `py-genlayer:test`, which does not currently resolve on StudioNet.
 
 ## Tests
 

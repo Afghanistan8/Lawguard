@@ -135,7 +135,7 @@ export default function App() {
             <ToolPanel
               tool={currentTool}
               api={api}
-              connected={wallet.connected}
+              wallet={wallet}
               samples={samples}
               jurisdictions={jurisdictions}
             />
@@ -145,18 +145,10 @@ export default function App() {
         {nav === "ledger" && <AnalysesPanel api={api} />}
         {nav === "alerts" && <AlertsPanel api={api} />}
         {nav === "cases" && (
-          <CaseRegistryPanel
-            api={api}
-            connected={wallet.connected}
-            jurisdictions={jurisdictions}
-          />
+          <CaseRegistryPanel api={api} wallet={wallet} jurisdictions={jurisdictions} />
         )}
         {nav === "sources" && (
-          <TrustedSourcesPanel
-            api={api}
-            connected={wallet.connected}
-            jurisdictions={jurisdictions}
-          />
+          <TrustedSourcesPanel api={api} wallet={wallet} jurisdictions={jurisdictions} />
         )}
         {nav === "dashboard" && (
           <>

@@ -1,27 +1,32 @@
 import { useMemo, useState } from "react";
 import type { ToolDef } from "../tools";
 import type { GenLayerApi } from "../useGenLayer";
+import type { WalletState } from "../useWallet";
 import type { SampleScenario } from "../types";
 import type { Jurisdiction } from "../config";
 import { useTx } from "../tx/TxContext";
 import { TxStatusView } from "./TxStatusView";
 import { ResultCard } from "./ResultCard";
+import { NetworkGuard } from "./NetworkGuard";
 
 /**
  * Config-driven panel for a single Lawguard AI tool. Renders the form, submits
  * the write through the app-level transaction manager (so it survives tab
  * switches), and displays the consensus-backed result once accepted on-chain.
+ *
+ * Writes are only enabled once the wallet is connected AND on StudioNet
+ * (`api.canWrite`) — see NetworkGuard for the visible wrong-network prompt.
  */
 export function ToolPanel({
   tool,
   api,
-  connected,
+  wallet,
   samples,
   jurisdictions,
 }: {
   tool: ToolDef;
   api: GenLayerApi;
-  connected: boolean;
+  wallet: WalletState;
   samples: SampleScenario[];
   jurisdictions: Jurisdiction[];
 }) {
@@ -61,10 +66,12 @@ export function ToolPanel({
     setActiveId(id);
   }
 
-  const disabledReason = !connected
+  const disabledReason = !wallet.connected
     ? "Connect a wallet first (top-right)"
     : !api.hasContract
     ? "Set a deployed contract address"
+    : !api.canWrite
+    ? "Switch your wallet to StudioNet to continue"
     : undefined;
 
   return (
@@ -75,6 +82,8 @@ export function ToolPanel({
           <p className="desc">{tool.description}</p>
         </div>
       </div>
+
+      <NetworkGuard wallet={wallet} />
 
       {mySamples.length > 0 && (
         <div className="toolbar">

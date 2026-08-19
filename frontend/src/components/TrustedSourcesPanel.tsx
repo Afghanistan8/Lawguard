@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import type { GenLayerApi } from "../useGenLayer";
+import type { WalletState } from "../useWallet";
 import type { TrustedSources } from "../types";
 import type { Jurisdiction } from "../config";
 import { JURISDICTION_LABELS } from "../config";
 import { useTx } from "../tx/TxContext";
 import { TxStatusView } from "./TxStatusView";
+import { NetworkGuard } from "./NetworkGuard";
 
 /**
  * View the country-aware registry of trusted primary/official law sources, and
@@ -13,11 +15,11 @@ import { TxStatusView } from "./TxStatusView";
  */
 export function TrustedSourcesPanel({
   api,
-  connected,
+  wallet,
   jurisdictions,
 }: {
   api: GenLayerApi;
-  connected: boolean;
+  wallet: WalletState;
   jurisdictions: Jurisdiction[];
 }) {
   const tx = useTx();
@@ -85,6 +87,8 @@ export function TrustedSourcesPanel({
         The jurisdiction list is read live from this registry.
       </div>
 
+      <NetworkGuard wallet={wallet} />
+
       <div className="toolbar">
         <input
           type="text"
@@ -113,8 +117,8 @@ export function TrustedSourcesPanel({
         <button
           className="primary small"
           onClick={() => mutate("add_trusted_source", country.trim(), url.trim())}
-          disabled={!connected || !api.ready || busy || !isHttps || !validCountry}
-          title={!connected ? "Connect a wallet first" : undefined}
+          disabled={!api.canWrite || busy || !isHttps || !validCountry}
+          title={!wallet.connected ? "Connect a wallet first" : undefined}
         >
           {busy ? "Working…" : "Add"}
         </button>
@@ -153,7 +157,7 @@ export function TrustedSourcesPanel({
                     <button
                       className="small ghost"
                       onClick={() => mutate("remove_trusted_source", c, u)}
-                      disabled={!connected || !api.ready || busy}
+                      disabled={!api.canWrite || busy}
                       title="Owner only"
                     >
                       Remove

@@ -11,7 +11,7 @@
  */
 import { createAccount, generatePrivateKey } from "genlayer-js";
 import type { Account } from "genlayer-js/types";
-import { CHAIN, NETWORK_KEY } from "../config";
+import { CHAIN } from "../config";
 
 export type Hex = `0x${string}`;
 
@@ -48,12 +48,11 @@ export function accountFromKey(key: Hex): Account {
 }
 
 /**
- * Best-effort faucet for a burner on StudioNet (the simulator supports
- * `sim_fundAccount`). No-op / silently ignored on networks that don't. Returns
- * true if the funding request was accepted.
+ * Best-effort faucet for a burner wallet on StudioNet (the simulator supports
+ * `sim_fundAccount`). Silently ignored if the request fails. Returns true if
+ * the funding request was accepted.
  */
 export async function tryFundBurner(address: string): Promise<boolean> {
-  if (NETWORK_KEY !== "studionet") return false;
   const rpc = CHAIN.rpcUrls?.default?.http?.[0];
   if (!rpc) return false;
   try {

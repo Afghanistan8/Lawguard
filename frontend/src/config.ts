@@ -1,36 +1,22 @@
 /**
  * Central runtime configuration for the Lawguard frontend.
  *
- * Values are read from Vite env vars (`import.meta.env`) with safe defaults so
- * the app boots even before a contract is deployed. See `.env.example`.
+ * Lawguard targets **GenLayer StudioNet only** (chain 61999). There is no
+ * network selector — the app is hardcoded to this chain so a connected wallet
+ * can never sign against the wrong network's contract.
  */
-import { studionet, localnet, testnetAsimov, testnetBradbury } from "genlayer-js/chains";
+import { studionet } from "genlayer-js/chains";
 import type { GenLayerChain } from "genlayer-js/types";
 
-export type NetworkKey =
-  | "studionet"
-  | "localnet"
-  | "testnet_asimov"
-  | "testnet_bradbury";
+/** Fixed network identity, kept as a constant for display/logic that needs it. */
+export const NETWORK_KEY = "studionet" as const;
 
-const NETWORKS: Record<NetworkKey, GenLayerChain> = {
-  studionet,
-  localnet,
-  testnet_asimov: testnetAsimov,
-  testnet_bradbury: testnetBradbury,
-};
-
-const rawNetwork = (import.meta.env.VITE_GENLAYER_NETWORK ?? "studionet") as string;
-export const NETWORK_KEY: NetworkKey = (
-  rawNetwork in NETWORKS ? rawNetwork : "studionet"
-) as NetworkKey;
-
-export const CHAIN: GenLayerChain = NETWORKS[NETWORK_KEY];
+export const CHAIN: GenLayerChain = studionet;
 
 /**
- * EVM `wallet_addEthereumChain` parameters for the active network, derived from
- * the genlayer-js chain. Used by the wallet layer to add/switch a browser
- * wallet (MetaMask, OKX, …) onto the GenLayer chain before signing.
+ * EVM `wallet_addEthereumChain` parameters for StudioNet, derived from the
+ * genlayer-js chain. Used by the wallet layer to add/switch a browser wallet
+ * (MetaMask, OKX, …) onto StudioNet before signing.
  */
 export const NET = {
   chainId: "0x" + CHAIN.id.toString(16),
@@ -51,7 +37,7 @@ export const NET = {
 export const RPC_URL_OVERRIDE: string | undefined =
   import.meta.env.VITE_GENLAYER_RPC_URL || undefined;
 
-/** The deployed Lawguard contract address (0x...), or empty until deployed. */
+/** The deployed Lawguard contract address (0x...) on StudioNet. */
 export const CONTRACT_ADDRESS: string = (
   import.meta.env.VITE_LAWGUARD_CONTRACT_ADDRESS ?? ""
 ).trim();
@@ -112,19 +98,15 @@ export function jurisdictionsFromCodes(codes: string[]): Jurisdiction[] {
   return out;
 }
 
-/**
- * Block explorers. We always offer the active-network explorer first, plus the
- * other public GenLayer explorers so a tx hash is never a dead end.
- */
+/** The StudioNet block explorer. Single-network app — one explorer, always. */
 export interface Explorer {
-  key: NetworkKey | "bradbury";
+  key: "studionet";
   label: string;
   base: string;
 }
 
 export const EXPLORERS: Explorer[] = [
   { key: "studionet", label: "StudioNet", base: "https://genlayer-explorer.vercel.app" },
-  { key: "bradbury", label: "Bradbury", base: "https://explorer-bradbury.genlayer.com" },
 ];
 
 /** Direct link to a transaction on a given explorer base. */
@@ -132,15 +114,7 @@ export function explorerTxUrl(base: string, hash: string): string {
   return `${base.replace(/\/+$/, "")}/tx/${hash}`;
 }
 
-/** The explorer that matches the active network (best-effort). */
-export function primaryExplorer(): Explorer {
-  if (NETWORK_KEY === "testnet_bradbury") {
-    return EXPLORERS.find((e) => e.key === "bradbury") ?? EXPLORERS[0];
-  }
-  return EXPLORERS.find((e) => e.key === "studionet") ?? EXPLORERS[0];
-}
-
-/** Human guidance for adding/switching to the active GenLayer chain in a wallet. */
+/** Human guidance for adding/switching to StudioNet in a wallet. */
 export const CHAIN_HELP = {
   name: NET.chainName,
   chainIdDecimal: NET.chainIdDecimal,

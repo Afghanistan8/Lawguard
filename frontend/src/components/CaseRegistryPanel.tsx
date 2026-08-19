@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import type { GenLayerApi } from "../useGenLayer";
+import type { WalletState } from "../useWallet";
 import type { CaseRecord } from "../types";
 import type { Jurisdiction } from "../config";
 import { useTx } from "../tx/TxContext";
 import { TxStatusView } from "./TxStatusView";
+import { NetworkGuard } from "./NetworkGuard";
 
 /**
  * Privacy-preserving case registry. Stores only minimal, lawyer-supplied
@@ -12,11 +14,11 @@ import { TxStatusView } from "./TxStatusView";
  */
 export function CaseRegistryPanel({
   api,
-  connected,
+  wallet,
   jurisdictions,
 }: {
   api: GenLayerApi;
-  connected: boolean;
+  wallet: WalletState;
   jurisdictions: Jurisdiction[];
 }) {
   const tx = useTx();
@@ -105,6 +107,8 @@ export function CaseRegistryPanel({
         modify it. Never store sensitive personal identifiers here.
       </p>
 
+      <NetworkGuard wallet={wallet} />
+
       <div className="grid cols-2">
         <div className="field">
           <label>Title *</label>
@@ -154,8 +158,8 @@ export function CaseRegistryPanel({
       <button
         className="primary"
         onClick={register}
-        disabled={!connected || !api.ready || busy || !title.trim()}
-        title={!connected ? "Connect a wallet first" : undefined}
+        disabled={!api.canWrite || busy || !title.trim()}
+        title={!wallet.connected ? "Connect a wallet first" : undefined}
       >
         {busy ? "Working…" : "Register case"}
       </button>
@@ -183,7 +187,7 @@ export function CaseRegistryPanel({
         <button
           className="small"
           onClick={link}
-          disabled={!connected || !api.ready || busy || !linkCase || !linkAnalysis}
+          disabled={!api.canWrite || busy || !linkCase || !linkAnalysis}
         >
           Link
         </button>

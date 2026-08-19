@@ -93,7 +93,7 @@ function parseMaybeJson<T>(value: unknown): T {
 
 export function useGenLayer(
   contractAddress: string = CONTRACT_ADDRESS,
-  wallet?: Pick<WalletState, "mode" | "account">
+  wallet?: Pick<WalletState, "mode" | "account" | "onChain">
 ): GenLayerApi {
   const [chain] = useState<GenLayerChain>(() => resolveChain());
 
@@ -101,7 +101,13 @@ export function useGenLayer(
 
   const hasContract = /^0x[0-9a-fA-F]{40}$/.test(contractAddress);
   const ready = hasContract;
-  const canWrite = hasContract && !!wallet?.mode;
+  // Local/burner signing is always on StudioNet by construction (the client is
+  // built with the app's fixed chain); an external wallet must additionally be
+  // switched onto StudioNet before a write is allowed.
+  const canWrite =
+    hasContract &&
+    !!wallet?.mode &&
+    (wallet.mode === "local" || !!wallet.onChain);
 
   const read = useCallback(
     async <T,>(functionName: string, args: unknown[] = []): Promise<T> => {
