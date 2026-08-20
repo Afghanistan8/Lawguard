@@ -259,6 +259,76 @@ class TestConflictAndCompare:
         assert "|" in out["result"]["citation"]
 
 
+class TestRestructuredConsensusPaths:
+    """
+    Runtime-representative coverage for the two paths the GenVM steward flagged
+    (extract_law_text via strict_eq, compare_jurisdictions via inlined
+    prompt_comparative). Both must complete end-to-end and commit a VERIFIED,
+    well-formed result — while the fake runtime now also enforces that every
+    gl.nondet.* call happens strictly inside an equivalence-principle block
+    (mirroring lint E010/E025), so these tests only pass if the restructure is
+    correct.
+    """
+
+    def test_extract_law_text_and_compare_jurisdictions_pass_lint_and_runtime(
+        self, runtime
+    ):
+        # A realistic, deterministic source + model so the leader and each
+        # validator produce matching decision keys and consensus is reached.
+        runtime.default_web = (
+            lambda url: "17 U.S.C. § 106 — Exclusive rights in copyrighted works ..."
+        )
+
+        def model(prompt):
+            # The model echoes a stable citation/status regardless of which
+            # validator runs it — exactly the case that must reach consensus.
+            # Dispatch on the TASK wording (not source text, which may mention a
+            # citation in both paths).
+            if "Compare how the crime/topic" in prompt:
+                return verified_payload(
+                    citation="US cite | UK cite", score=72, conf="MEDIUM"
+                )
+            return verified_payload(citation="17 U.S.C. § 106", score=88)
+
+        runtime.model = model
+        c = make_contract()
+
+        # --- Path 1: extract_law_text (STRICT equivalence) ---
+        ex = json.loads(c.extract_law_text("17 U.S.C. § 106", "US"))
+        assert "error" not in ex
+        r1 = ex["result"]
+        assert r1["status"] == "VERIFIED"
+        assert r1["citation"].startswith("17 U.S.C")
+        assert r1["applicability_bucket"] in ("LOW", "MEDIUM", "HIGH")
+        assert r1["disclaimer"]  # schema preserved
+        assert r1["sources"]  # grounded in a trusted source
+        assert "id" in ex
+
+        # --- Path 2: compare_jurisdictions (inlined comparative equivalence) ---
+        cmp = json.loads(c.compare_jurisdictions("copyright infringement", "US", "UK"))
+        assert "error" not in cmp
+        r2 = cmp["result"]
+        assert r2["status"] == "VERIFIED"
+        assert "|" in r2["citation"]  # both jurisdictions cited
+        assert r2["exact_text_or_summary"]  # full prose preserved on this path
+        assert r2["disclaimer"]
+
+        # Both analyses were committed on-chain and counted.
+        stats = json.loads(c.get_stats())
+        assert stats["total_analyses"] == 2
+        assert stats["verified"] == 2
+
+    def test_nondet_outside_equivalence_is_rejected_by_double(self, runtime):
+        # Sanity check that the hardened double actually enforces the GenVM
+        # constraint the linter checks: calling gl.nondet.* outside an
+        # equivalence block must raise (this is what makes the offline suite a
+        # faithful regression guard for the restructured paths).
+        import genlayer  # the installed test double
+
+        with pytest.raises(RuntimeError):
+            genlayer.gl.nondet.exec_prompt("this runs outside any eq block")
+
+
 class TestCaseRegistry:
     def test_register_and_link(self, runtime):
         runtime.default_web = lambda url: "text"

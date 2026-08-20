@@ -298,6 +298,98 @@ def _decision_key(result: dict) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Strict-extraction canonicalisation.
+#
+# For the verbatim-extraction path (extract_law_text) we use STRICT equivalence.
+# The value handed to gl.eq_principle.strict_eq must be a fully canonical,
+# deterministic string so that independent validators can agree byte-for-byte on
+# the *decision* without ever having to reproduce non-deterministic prose. These
+# helpers build that canonical string and reconstruct a full, schema-shaped
+# result from an agreed key — all deterministic, with no gl.nondet.* calls.
+# ---------------------------------------------------------------------------
+
+# Representative applicability score for each agreed bucket (deterministic).
+_BUCKET_SCORE = {"HIGH": 80, "MEDIUM": 50, "LOW": 15}
+
+
+def _extraction_key(result: dict) -> dict:
+    """
+    The canonical, decision-critical subset for strict extraction. Unlike
+    :func:`_decision_key` (which lowercases the citation for *lenient*
+    comparative matching), this preserves the citation's official casing since a
+    verbatim extraction should agree on the exact reference.
+    """
+    return {
+        "status": result.get("status"),
+        "citation": _clean_text(str(result.get("citation", "")), MAX_SHORT_LEN),
+        "applicability_bucket": result.get("applicability_bucket"),
+        "confidence": result.get("confidence"),
+    }
+
+
+def _canonical_key_json(result: dict) -> str:
+    """Deterministic, canonical JSON string of the extraction decision key."""
+    return json.dumps(
+        _extraction_key(result), sort_keys=True, separators=(",", ":")
+    )
+
+
+def _result_from_key_json(key_json: str, sources: list[str], kind: str) -> dict:
+    """
+    Reconstruct a full, schema-shaped result from a consensus-agreed decision
+    key. Runs only in the deterministic path *after* strict equivalence has
+    committed the key — it performs NO non-deterministic work.
+    """
+    try:
+        key = json.loads(key_json)
+        if not isinstance(key, dict):
+            key = {}
+    except Exception:
+        key = {}
+
+    status = _coerce_status(str(key.get("status", STATUS_INSUFFICIENT)))
+    citation = _clean_text(str(key.get("citation", "")), MAX_SHORT_LEN)
+    bucket = str(key.get("applicability_bucket", "LOW")).upper()
+    if bucket not in ("LOW", "MEDIUM", "HIGH"):
+        bucket = "LOW"
+    confidence = _coerce_confidence(str(key.get("confidence", "LOW")))
+    used_sources = [u for u in sources if _is_https(u)][:MAX_URLS]
+
+    if status == STATUS_VERIFIED and citation:
+        summary = (
+            f"Consensus-verified reference: {citation}. Validators independently "
+            f"agreed (strict equivalence) on the citation, status, applicability "
+            f"and confidence. Consult the cited official source(s) for the exact "
+            f"verbatim provision text."
+        )
+        notes = (
+            "Under strict equivalence the verbatim text itself is not committed "
+            "on-chain (it varies between independent fetches); the cited official "
+            "source is authoritative for the exact wording."
+        )
+    else:
+        summary = (
+            "The trusted sources did not yield a citation the validators could "
+            "strictly agree on."
+        )
+        notes = "Add a deep link to the exact provision and retry."
+
+    return _normalize_result(
+        {
+            "status": status,
+            "citation": citation,
+            "exact_text_or_summary": summary,
+            "applicability_score": _BUCKET_SCORE.get(bucket, 15),
+            "confidence": confidence,
+            "sources": used_sources,
+            "notes": notes,
+        },
+        used_sources,
+        kind,
+    )
+
+
 def _untrusted_block(label: str, content: str) -> str:
     """
     Wrap externally fetched content in explicit UNTRUSTED DATA markers so the
@@ -718,6 +810,10 @@ class Lawguard(gl.Contract):
             )
 
             def leader_fn() -> dict:
+                # All gl.nondet.* work lives here, and this callable is passed
+                # DIRECTLY to gl.eq_principle.prompt_comparative below (no helper
+                # indirection) so the linter can statically prove the
+                # non-determinism is inside the equivalence block.
                 context, ok = self._fetch_sources(combined)
                 if not context or not ok:
                     return _normalize_result(
@@ -734,7 +830,33 @@ class Lawguard(gl.Contract):
                     ok, "compare_jurisdictions",
                 )
 
-            result = self._consensus(leader_fn, "compare_jurisdictions", combined)
+            try:
+                # Comparative equivalence: validators independently reproduce the
+                # comparison and must agree on status, normalised citation,
+                # applicability_bucket and confidence. Prose may differ.
+                consensus = gl.eq_principle.prompt_comparative(
+                    leader_fn,
+                    principle=(
+                        "The two results are equivalent if and only if they "
+                        "report the same 'status', the same normalised "
+                        "'citation', the same 'applicability_bucket', and the "
+                        "same 'confidence'. Wording of the summary or notes may "
+                        "differ."
+                    ),
+                )
+                if not isinstance(consensus, dict):
+                    consensus = _extract_json(json.dumps(consensus))
+                result = _normalize_result(
+                    consensus,
+                    consensus.get("sources", combined),
+                    "compare_jurisdictions",
+                )
+            except Exception:
+                result = _normalize_result(
+                    {"status": STATUS_UNAVAILABLE,
+                     "notes": "Consensus could not be reached."},
+                    [], "compare_jurisdictions",
+                )
 
         aid = self._store_analysis(
             result,
@@ -871,9 +993,17 @@ class Lawguard(gl.Contract):
         self, task_prompt: str, country: str, extra_urls: list[str], kind: str
     ) -> dict:
         """
-        Like _run_grounded_analysis but uses STRICT equivalence — appropriate
-        for verbatim text extraction where leader and validators should produce
-        the same normalised decision fields exactly.
+        Verbatim-extraction path using STRICT equivalence.
+
+        The callable handed to ``gl.eq_principle.strict_eq`` returns a *fully
+        canonical, deterministic* JSON string of the decision key, and EVERY
+        non-deterministic call (``gl.nondet.web.render`` + ``exec_prompt``) lives
+        strictly inside that callable. Independent validators must therefore
+        agree byte-for-byte on the decision. The full, schema-shaped result is
+        then reconstructed from the agreed key WITHOUT re-running the leader
+        function — so no non-determinism ever executes outside the equivalence
+        block (satisfies GenVM lint: no nondet outside eq-principle, and no
+        nested non-deterministic blocks).
         """
         sources = self._resolve_sources(country, extra_urls)
         if not sources:
@@ -883,36 +1013,31 @@ class Lawguard(gl.Contract):
                 [], kind,
             )
 
-        def leader_fn() -> dict:
+        def leader_fn() -> str:
+            # All gl.nondet.* work happens here, inside the equivalence callable.
             context, ok = self._fetch_sources(sources)
             if not context or not ok:
-                return _normalize_result(
-                    {"status": STATUS_UNAVAILABLE,
-                     "notes": "Trusted sources unreachable at run time."},
-                    [], kind,
+                return _canonical_key_json(
+                    _normalize_result(
+                        {"status": STATUS_UNAVAILABLE,
+                         "notes": "Trusted sources unreachable at run time."},
+                        [], kind,
+                    )
                 )
             prompt = (
                 f"{_SCHEMA_INSTRUCTIONS}\nTASK:\n{task_prompt}\n\n"
                 f"Jurisdiction: {_normalize_country(country)}\n\n{context}\n"
             )
-            return _normalize_result(
+            normalized = _normalize_result(
                 _extract_json(gl.nondet.exec_prompt(prompt)), ok, kind
             )
+            # Return ONLY the canonical decision key so validators strictly agree.
+            return _canonical_key_json(normalized)
 
         try:
-            # Strict equivalence on the decision key.
-            result = gl.eq_principle.strict_eq(
-                lambda: _decision_key(leader_fn())
-            )
-            # strict_eq agrees only on the key; re-run once for full prose on the
-            # leader path and merge. If prose run fails, keep the agreed key.
-            full = leader_fn()
-            if _decision_key(full) == result:
-                return full
-            # Keys diverged from the second run -> fail safe to insufficient.
-            merged = dict(full)
-            merged.update(result)
-            return _normalize_result(merged, merged.get("sources", sources), kind)
+            key_json = gl.eq_principle.strict_eq(leader_fn)
+            # Deterministic reconstruction from the agreed key (no nondet here).
+            return _result_from_key_json(key_json, sources, kind)
         except Exception:
             return _normalize_result(
                 {"status": STATUS_UNAVAILABLE,
@@ -920,29 +1045,7 @@ class Lawguard(gl.Contract):
                 [], kind,
             )
 
-    def _consensus(self, leader_fn, kind: str, sources: list[str]) -> dict:
-        """Comparative-equivalence wrapper with fail-safe."""
-        try:
-            result = gl.eq_principle.prompt_comparative(
-                leader_fn,
-                principle=(
-                    "Results are equivalent iff they share the same 'status', "
-                    "normalised 'citation', 'applicability_bucket' and "
-                    "'confidence'."
-                ),
-            )
-            if not isinstance(result, dict):
-                result = _extract_json(json.dumps(result))
-            return _normalize_result(result, result.get("sources", sources), kind)
-        except Exception:
-            return _normalize_result(
-                {"status": STATUS_UNAVAILABLE,
-                 "notes": "Consensus could not be reached."},
-                [], kind,
-            )
-
-    @staticmethod
-    def _as_list(value: typing.Any) -> list[str]:
+    def _as_list(self, value: typing.Any) -> list[str]:
         """Coerce an optional URL argument into a plain list of strings."""
         if value is None:
             return []

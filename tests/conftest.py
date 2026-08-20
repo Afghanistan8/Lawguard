@@ -41,8 +41,23 @@ class FakeRuntime:
         # callable(prompt) -> str
         self.model = lambda prompt: '{"status":"UNAVAILABLE"}'
         self.sender = "0x" + "11" * 20
+        # Depth counter mirroring the real GenVM constraint: gl.nondet.* may only
+        # execute *inside* an equivalence-principle block. eq_principle wrappers
+        # increment this while running the leader/validator callables; fetch()
+        # and prompt() refuse to run when it is zero. This makes the offline
+        # double reject the same patterns the real linter rejects (E010: nondet
+        # outside an eq block) rather than silently passing.
+        self.in_eq = 0
+
+    def _require_eq_context(self, what):
+        if self.in_eq <= 0:
+            raise RuntimeError(
+                f"non-deterministic {what} called outside an equivalence "
+                "principle block — forbidden by GenVM (mirrors lint E010/E025)."
+            )
 
     def fetch(self, url, mode="text"):
+        self._require_eq_context("web.render")
         if url in self.web_responses:
             r = self.web_responses[url]
             return r(url) if callable(r) else r
@@ -51,6 +66,7 @@ class FakeRuntime:
         raise RuntimeError(f"no fake response for {url}")
 
     def prompt(self, prompt):
+        self._require_eq_context("exec_prompt")
         return self.model(prompt)
 
 
@@ -156,16 +172,39 @@ def _install_fake_genlayer():
     )
 
     # equivalence principle — emulate leader + validator agreement.
+    #
+    # Each wrapper marks that we are INSIDE an equivalence block while it runs
+    # the callable(s), so any gl.nondet.* the contract performs is only allowed
+    # here (see FakeRuntime._require_eq_context). This mirrors the real GenVM /
+    # linter constraint at runtime.
+    def _run_in_eq(fn):
+        RUNTIME.in_eq += 1
+        try:
+            return fn()
+        finally:
+            RUNTIME.in_eq -= 1
+
+    def _canonical(value):
+        """Canonicalise for byte-equivalent comparison, like calldata encoding."""
+        try:
+            return json.dumps(value, sort_keys=True, separators=(",", ":"))
+        except Exception:
+            return repr(value)
+
     def _strict_eq(fn):
-        leader = fn()
-        validator = fn()
-        if leader != validator:
+        # Leader and each validator run the SAME callable; the result must be a
+        # deterministic, canonical value (the contract returns a sorted JSON
+        # string). Compared canonically so dict ordering can never mask a
+        # divergence.
+        leader = _run_in_eq(fn)
+        validator = _run_in_eq(fn)
+        if _canonical(leader) != _canonical(validator):
             raise RuntimeError("validators disagreed (strict_eq)")
         return leader
 
     def _prompt_comparative(fn, principle=""):
-        leader = fn()
-        validator = fn()
+        leader = _run_in_eq(fn)
+        validator = _run_in_eq(fn)
         # Compare only the decision-critical keys, mirroring the principle.
         def key(d):
             if not isinstance(d, dict):
@@ -181,7 +220,7 @@ def _install_fake_genlayer():
         return leader
 
     def _prompt_non_comparative(fn, task="", criteria=""):
-        return fn()
+        return _run_in_eq(fn)
 
     gl.eq_principle = types.SimpleNamespace(
         strict_eq=_strict_eq,
@@ -217,4 +256,5 @@ def runtime():
     RUNTIME.default_web = None
     RUNTIME.model = lambda prompt: '{"status":"UNAVAILABLE"}'
     RUNTIME.sender = "0x" + "11" * 20
+    RUNTIME.in_eq = 0
     return RUNTIME
