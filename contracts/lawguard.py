@@ -303,33 +303,70 @@ def _decision_key(result: dict) -> dict:
 #
 # For the verbatim-extraction path (extract_law_text) we use STRICT equivalence.
 # The value handed to gl.eq_principle.strict_eq must be a fully canonical,
-# deterministic string so that independent validators can agree byte-for-byte on
-# the *decision* without ever having to reproduce non-deterministic prose. These
+# deterministic string so that independent validators can agree byte-for-byte.
+# Crucially, that canonical value INCLUDES the extracted provision text itself
+# (whitespace/punctuation-normalised so honest extractions of the same provision
+# converge), so the actual law text is the value validators agree on — and it is
+# preserved verbatim (modulo normalisation) in the final stored result. These
 # helpers build that canonical string and reconstruct a full, schema-shaped
-# result from an agreed key — all deterministic, with no gl.nondet.* calls.
+# result from the agreed value — all deterministic, with no gl.nondet.* calls.
 # ---------------------------------------------------------------------------
 
 # Representative applicability score for each agreed bucket (deterministic).
 _BUCKET_SCORE = {"HIGH": 80, "MEDIUM": 50, "LOW": 15}
 
+# Unicode → ASCII folds so two honest extractions of the same provision (which
+# may differ only in smart quotes, dashes, or spacing) still reach strict
+# equality on the text. Casing and words are NOT altered — only presentation.
+_TEXT_FOLDS = {
+    "‘": "'", "’": "'", "‛": "'",          # single quotes
+    "“": '"', "”": '"', "„": '"',          # double quotes
+    "–": "-", "—": "-", "−": "-",           # dashes / minus
+    " ": " ", " ": " ", " ": " ", " ": " ",  # nbsp/thin
+    "§": "§",                                          # normalise section sign
+    "﻿": "",                                           # BOM
+}
+
+
+def _normalize_law_text(text: str) -> str:
+    """
+    Canonicalise extracted provision text for strict cross-validator agreement:
+    fold presentation-only Unicode variants to ASCII and collapse every run of
+    whitespace (spaces, tabs, newlines) to a single space. The words, order and
+    casing of the law are preserved exactly — only formatting noise is removed.
+    """
+    if not text:
+        return ""
+    s = str(text)
+    for bad, good in _TEXT_FOLDS.items():
+        if bad in s:
+            s = s.replace(bad, good)
+    s = " ".join(s.split())  # collapse all whitespace runs to single spaces
+    return s[:MAX_TEXT_LEN]
+
 
 def _extraction_key(result: dict) -> dict:
     """
-    The canonical, decision-critical subset for strict extraction. Unlike
+    The canonical, decision-critical value for strict extraction. Unlike
     :func:`_decision_key` (which lowercases the citation for *lenient*
-    comparative matching), this preserves the citation's official casing since a
-    verbatim extraction should agree on the exact reference.
+    comparative matching), this preserves the citation's official casing AND
+    includes the normalised provision text, so the law text itself is part of
+    what validators must agree on.
     """
     return {
         "status": result.get("status"),
         "citation": _clean_text(str(result.get("citation", "")), MAX_SHORT_LEN),
         "applicability_bucket": result.get("applicability_bucket"),
         "confidence": result.get("confidence"),
+        # The extracted law text is part of the agreed value (normalised).
+        "text": _normalize_law_text(
+            str(result.get("exact_text_or_summary", ""))
+        ),
     }
 
 
 def _canonical_key_json(result: dict) -> str:
-    """Deterministic, canonical JSON string of the extraction decision key."""
+    """Deterministic, canonical JSON string of the agreed extraction value."""
     return json.dumps(
         _extraction_key(result), sort_keys=True, separators=(",", ":")
     )
@@ -337,9 +374,10 @@ def _canonical_key_json(result: dict) -> str:
 
 def _result_from_key_json(key_json: str, sources: list[str], kind: str) -> dict:
     """
-    Reconstruct a full, schema-shaped result from a consensus-agreed decision
-    key. Runs only in the deterministic path *after* strict equivalence has
-    committed the key — it performs NO non-deterministic work.
+    Reconstruct a full, schema-shaped result from the consensus-agreed value.
+    Runs only in the deterministic path *after* strict equivalence has committed
+    the value — it performs NO non-deterministic work. The agreed provision text
+    is carried straight through into ``exact_text_or_summary``.
     """
     try:
         key = json.loads(key_json)
@@ -356,24 +394,30 @@ def _result_from_key_json(key_json: str, sources: list[str], kind: str) -> dict:
     confidence = _coerce_confidence(str(key.get("confidence", "LOW")))
     used_sources = [u for u in sources if _is_https(u)][:MAX_URLS]
 
-    if status == STATUS_VERIFIED and citation:
-        summary = (
-            f"Consensus-verified reference: {citation}. Validators independently "
-            f"agreed (strict equivalence) on the citation, status, applicability "
-            f"and confidence. Consult the cited official source(s) for the exact "
-            f"verbatim provision text."
-        )
+    # The exact provision text that validators strictly agreed on.
+    agreed_text = _clean_text(str(key.get("text", "")), MAX_TEXT_LEN)
+
+    if status == STATUS_VERIFIED and citation and agreed_text:
+        summary = agreed_text
         notes = (
-            "Under strict equivalence the verbatim text itself is not committed "
-            "on-chain (it varies between independent fetches); the cited official "
-            "source is authoritative for the exact wording."
+            "Verbatim provision text agreed by strict validator consensus and "
+            "committed on-chain (whitespace/punctuation normalised). Verify "
+            "against the cited official source."
+        )
+    elif agreed_text:
+        # Sub-VERIFIED but we still have agreed text — preserve it.
+        summary = agreed_text
+        notes = (
+            "Extracted text agreed by consensus, but the citation/status did not "
+            "reach a VERIFIED result. Confirm against the cited source."
         )
     else:
         summary = (
-            "The trusted sources did not yield a citation the validators could "
-            "strictly agree on."
+            "The trusted sources did not yield provision text the validators "
+            "could strictly agree on. Add a deep link to the exact provision and "
+            "retry."
         )
-        notes = "Add a deep link to the exact provision and retry."
+        notes = "No agreed verbatim text was produced."
 
     return _normalize_result(
         {
