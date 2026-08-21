@@ -330,10 +330,15 @@ _TEXT_FOLDS = {
 
 def _normalize_law_text(text: str) -> str:
     """
-    Canonicalise extracted provision text for strict cross-validator agreement:
-    fold presentation-only Unicode variants to ASCII and collapse every run of
-    whitespace (spaces, tabs, newlines) to a single space. The words, order and
-    casing of the law are preserved exactly — only formatting noise is removed.
+    Canonicalise extracted provision text for strict cross-validator agreement
+    while PRESERVING legally-significant line structure (subsection breaks).
+
+    Line-by-line: fold presentation-only Unicode variants to ASCII, collapse
+    intra-line whitespace (spaces/tabs/Unicode spaces) to single spaces, strip
+    each line, and drop blank lines — but keep the newline between non-empty
+    lines. So indentation, trailing spaces and blank-line runs (the noise that
+    makes honest extractions diverge byte-for-byte) are removed, while the
+    subsection layout, words, order and casing of the law are preserved exactly.
     """
     if not text:
         return ""
@@ -341,8 +346,13 @@ def _normalize_law_text(text: str) -> str:
     for bad, good in _TEXT_FOLDS.items():
         if bad in s:
             s = s.replace(bad, good)
-    s = " ".join(s.split())  # collapse all whitespace runs to single spaces
-    return s[:MAX_TEXT_LEN]
+    s = s.replace("\r\n", "\n").replace("\r", "\n")
+    lines = []
+    for line in s.split("\n"):
+        collapsed = " ".join(line.split())  # collapse intra-line whitespace
+        if collapsed:
+            lines.append(collapsed)
+    return "\n".join(lines)[:MAX_TEXT_LEN]
 
 
 def _extraction_key(result: dict) -> dict:
@@ -401,7 +411,9 @@ def _result_from_key_json(key_json: str, sources: list[str], kind: str) -> dict:
         summary = agreed_text
         notes = (
             "Verbatim provision text agreed by strict validator consensus and "
-            "committed on-chain (whitespace/punctuation normalised). Verify "
+            "committed on-chain. Only presentation noise is normalised "
+            "(indentation, trailing/duplicate spaces, smart quotes/dashes); the "
+            "words, casing and subsection line breaks are preserved. Verify "
             "against the cited official source."
         )
     elif agreed_text:

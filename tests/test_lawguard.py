@@ -367,19 +367,28 @@ class TestRestructuredConsensusPaths:
         stored = json.loads(c.get_analysis(out["id"]))
         assert stored["exact_text_or_summary"] == provision
 
-    def test_extract_law_text_agrees_after_whitespace_normalisation(self, runtime):
+    def test_extract_law_text_normalisation_preserves_subsection_structure(
+        self, runtime
+    ):
         """
-        The agreed value tolerates presentation-only differences: two runs whose
-        text differs only in whitespace/smart-quotes still reach strict equality,
-        and the normalised (single-spaced, ASCII-folded) law text is stored.
+        Normalisation removes presentation noise (indentation, trailing/duplicate
+        spaces, blank lines, smart quotes/dashes) so honest extractions converge
+        under strict equality — while PRESERVING the legally-significant
+        subsection line structure and the exact words/casing of the law.
         """
-        # Same words, but messy whitespace + smart quotes + an em dash.
+        # Messy layout: leading indentation, double spaces, tabs, smart quotes,
+        # an em dash, and blank lines between subsections.
         messy = (
-            "The   owner’s  exclusive\tright — to  reproduce\n\n the "
-            "“work” in copies."
+            "  (1) to reproduce   the copyrighted work;\n"
+            "\t(2) to prepare derivative works — based upon it;\n\n"
+            "   (3) to distribute “copies” to the public.  \n"
         )
-        expected = 'The owner\'s exclusive right - to reproduce the "work" in copies.'
-        runtime.default_web = lambda url: "s.106 text: " + messy
+        expected = (
+            "(1) to reproduce the copyrighted work;\n"
+            "(2) to prepare derivative works - based upon it;\n"
+            '(3) to distribute "copies" to the public.'
+        )
+        runtime.default_web = lambda url: "17 U.S.C. 106 exclusive rights: " + messy
         runtime.model = lambda prompt: json.dumps(
             {
                 "status": "VERIFIED",
@@ -394,7 +403,61 @@ class TestRestructuredConsensusPaths:
         c = make_contract()
         r = json.loads(c.extract_law_text("17 U.S.C. § 106", "US"))["result"]
         assert r["status"] == "VERIFIED"
-        assert r["exact_text_or_summary"] == expected  # normalised, real words kept
+        # Real words + subsection line breaks preserved; only noise removed.
+        assert r["exact_text_or_summary"] == expected
+        assert r["exact_text_or_summary"].count("\n") == 2  # three subsections
+
+    def test_extract_law_text_from_messy_html_stays_useful(self, runtime):
+        """
+        End-to-end with a deliberately messy, HTML-ish source: the provision text
+        the LLM extracts survives consensus and remains clean and useful — the
+        real statutory words are present and readable in the stored result.
+        """
+        # A realistic "rendered" page still carries boilerplate + irregular
+        # spacing around the actual provision.
+        provision_raw = (
+            "\n\n   § 106.  Exclusive rights in copyrighted works\n"
+            "\tSubject to sections 107 through 122, the owner of copyright\n"
+            "   under this title has the exclusive rights to do and to authorize\n"
+            "   any of the following:\n"
+        )
+        provision_clean = (
+            "§ 106. Exclusive rights in copyrighted works\n"
+            "Subject to sections 107 through 122, the owner of copyright\n"
+            "under this title has the exclusive rights to do and to authorize\n"
+            "any of the following:"
+        )
+        runtime.default_web = lambda url: (
+            "Skip to main content | GovInfo | Home > USCODE > Title 17 "
+            + provision_raw
+            + " About | Accessibility | Privacy"
+        )
+        # The model (leader + each validator) extracts the provision block.
+        runtime.model = lambda prompt: json.dumps(
+            {
+                "status": "VERIFIED",
+                "citation": "17 U.S.C. § 106",
+                "exact_text_or_summary": provision_raw,
+                "applicability_score": 92,
+                "confidence": "HIGH",
+                "sources": ["https://www.govinfo.gov"],
+                "notes": "",
+            }
+        )
+        c = make_contract()
+        out = json.loads(c.extract_law_text("17 U.S.C. § 106", "US"))
+        r = out["result"]
+        assert r["status"] == "VERIFIED"
+        # Clean, useful, and structurally faithful.
+        assert r["exact_text_or_summary"] == provision_clean
+        assert "Exclusive rights in copyrighted works" in r["exact_text_or_summary"]
+        assert "exclusive rights to do and to authorize" in r["exact_text_or_summary"]
+        # No boilerplate / navigation leaked in from the page.
+        assert "Skip to main content" not in r["exact_text_or_summary"]
+        assert "Accessibility" not in r["exact_text_or_summary"]
+        # Survives storage retrieval.
+        stored = json.loads(c.get_analysis(out["id"]))
+        assert stored["exact_text_or_summary"] == provision_clean
 
     def test_nondet_outside_equivalence_is_rejected_by_double(self, runtime):
         # Sanity check that the hardened double actually enforces the GenVM
